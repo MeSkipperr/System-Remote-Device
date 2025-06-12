@@ -19,6 +19,12 @@ import (
 	"SystemRemoteDevice/models"
 )
 
+type smtpType struct {
+	SMTPHost string		`json:"smtpHost"`
+	SMTPPort string		`json:"smtpPort"`
+	Name     string		`json:"name"`
+}
+
 // SendEmail delivers an e‑mail to every recipient listed in the provided
 // EmailStructure.  It supports two modes:
 //  1. Plain‑text only (when FileAttachment is empty)
@@ -126,16 +132,23 @@ func SendEmail(email models.EmailStructure) (bool, string) {
 		}
 	}
 
-	// Early exit on validation failure
+	//Get data config from json
+	smtpConfig, errSMTP := config.LoadJSON[smtpType]("config/smtp.json")
+	
+	if errSMTP != nil {
+		errors = append(errors, fmt.Sprintf("Failed to load SMTP config: %v", errSMTP))
+	}
 	if len(errors) > 0 {
 		return false, strings.Join(errors, "; ")
 	}
+
+	// Early exit on validation failure
 	errors = errors[:0] // reset for sending phase
 
 	//------------------------------------------------
 	// 2. ── Set up SMTP authentication (PLAIN)
 	//------------------------------------------------
-	auth := smtp.PlainAuth("", sender.Email, sender.Pass, config.SMTPConfig.SMTPHost)
+	auth := smtp.PlainAuth("", sender.Email, sender.Pass, smtpConfig.SMTPHost)
 
 	//------------------------------------------------
 	// 3. ── Send loop per recipient (ensures personalised body)
@@ -145,7 +158,7 @@ func SendEmail(email models.EmailStructure) (bool, string) {
 		body := strings.ReplaceAll(emailData.BodyTemplate, "{userName}", user.UserName)
 
 		// 3b. Build message headers + payload
-		fromHeader := fmt.Sprintf("%s <%s>", config.SMTPConfig.Name, sender.Email)
+		fromHeader := fmt.Sprintf("%s <%s>",smtpConfig.Name, sender.Email)
 		toHeader := user.Email
 		var msg bytes.Buffer
 
@@ -209,7 +222,7 @@ func SendEmail(email models.EmailStructure) (bool, string) {
 
 		// 3c. Attempt to send
 		if err := smtp.SendMail(
-			config.SMTPConfig.SMTPHost+":"+config.SMTPConfig.SMTPPort,
+			smtpConfig.SMTPHost+":"+smtpConfig.SMTPPort,
 			auth,
 			sender.Email,         // envelope‑from
 			[]string{user.Email}, // envelope‑to

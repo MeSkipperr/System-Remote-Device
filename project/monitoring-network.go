@@ -12,6 +12,12 @@ import (
 	"time"
 )
 
+type monitoringNetworkType struct {
+	Times int				`json:"times"`
+	Runtime  int			`json:"runtime"`
+	DeviceType []string		`json:"deviceType"`
+}
+
 func updateError(dev models.DeviceType, errorStatus bool, ) (bool, string) {
 	currentTime := time.Now()
 
@@ -102,9 +108,15 @@ func statusChecking(dev models.DeviceType, lostPercent float64) {
 func MonitoringNetwork(stopChan chan struct{}) {
 	fmt.Println("Monitoring network started")
 
-	times := config.MonitoringNetwork.Times
+	conf, err := config.LoadJSON[monitoringNetworkType]("config/monitoring-network.json")
 
-	ticker := time.NewTicker(time.Duration(config.MonitoringNetwork.Runtime) * time.Second)
+	if err != nil {	
+		fmt.Println("Failed to load config from json", err)
+		return 
+	}
+	times := conf.Times
+
+	ticker := time.NewTicker(time.Duration(conf.Runtime) * time.Second)
 	defer ticker.Stop()
 
 	for {

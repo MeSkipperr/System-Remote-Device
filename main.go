@@ -1,16 +1,16 @@
 package main
 
 import (
+	"SystemRemoteDevice/project"
 	"fmt"
 	"net/http"
 	"sync"
-	"SystemRemoteDevice/project"
 )
 
 var (
-	muMonitor       sync.Mutex
-	monitorRunning  bool
-	monitorStopCh   chan struct{}
+	muMonitor      sync.Mutex
+	monitorRunning bool
+	monitorStopCh  chan struct{}
 )
 
 // === Monitoring Network Handlers ===
@@ -59,12 +59,13 @@ func statusMonitoringHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// === System Information Handlers ===
-
-// Starts the system information gathering process
 func startSysInfoHandler(w http.ResponseWriter, r *http.Request) {
 	go project.GetSystemInformation()
 	fmt.Fprintln(w, "System Information retrieval has been started.")
+}
+func startCheckSystemHasError(w http.ResponseWriter, r *http.Request) {
+	go project.CheckSystemHasError()
+	fmt.Fprintln(w, "CheckSystemHas Error retrieval has been started.")
 }
 
 func main() {
@@ -75,6 +76,7 @@ func main() {
 
 	// Route for System Information
 	http.HandleFunc("/project/get-system-information/start", startSysInfoHandler)
+	http.HandleFunc("/project/check-system-has-error/start", startCheckSystemHasError)
 
 	fmt.Println("Server is running at http://localhost:8080")
 	http.ListenAndServe(":8080", nil)

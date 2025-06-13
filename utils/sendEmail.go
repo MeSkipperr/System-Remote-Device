@@ -157,6 +157,9 @@ func SendEmail(email models.EmailStructure) (bool, string) {
 		// 3a. Personalise body placeholders
 		body := strings.ReplaceAll(emailData.BodyTemplate, "{userName}", user.UserName)
 
+		// Check all attachments first
+		hasAttachmentError := false
+
 		// 3b. Build message headers + payload
 		fromHeader := fmt.Sprintf("%s <%s>",smtpConfig.Name, sender.Email)
 		toHeader := user.Email
@@ -188,8 +191,9 @@ func SendEmail(email models.EmailStructure) (bool, string) {
 			for _, path := range emailData.FileAttachment {
 				data, err := os.ReadFile(path)
 				if err != nil {
-					errors = append(errors, fmt.Sprintf("%s: failed to read %s (%v)", user.Email, path, err))
-					continue // skip this attachment but still attempt sending
+					errors = append(errors, fmt.Sprintf("%s: failed to read attachment %s (%v)", user.Email, path, err))
+					hasAttachmentError = true
+					break
 				}
 
 				filename := filepath.Base(path)
@@ -219,6 +223,10 @@ func SendEmail(email models.EmailStructure) (bool, string) {
 			// Closing boundary
 			msg.WriteString("--" + boundary + "--")
 		}
+		if hasAttachmentError {
+			continue // skip sending email to this user
+		}
+
 
 		// 3c. Attempt to send
 		if err := smtp.SendMail(

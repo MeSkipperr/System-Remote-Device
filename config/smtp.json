@@ -1,5 +1,5 @@
 {
-    "smtpHost":"",
-    "smtpPort":"",
-    "name":""
+    "smtpHost":"smtp.gmail.com",
+    "smtpPort":"587",
+    "name":"DPSCY SYSTEM"
 }

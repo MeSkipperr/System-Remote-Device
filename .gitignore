@@ -1,2 +1,5 @@
 .env
 /resource/app.db
+/log/*
+
+!/log/.gitkeep

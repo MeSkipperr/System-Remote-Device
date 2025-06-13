@@ -2,7 +2,7 @@
     "times":1,
     "runtime":1,
     "deviceType":[
-        "",
-        ""
+        "network",
+        "server"
     ]
 }

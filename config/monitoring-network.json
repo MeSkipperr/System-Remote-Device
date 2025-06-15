@@ -1,8 +1,9 @@
 {
-    "times":1,
-    "runtime":1,
+    "times":10,
+    "runtime":5,
     "deviceType":[
         "network",
         "server"
-    ]
+    ],
+    "logPath":"log/monitoring-network/"
 }

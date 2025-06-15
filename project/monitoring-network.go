@@ -13,9 +13,10 @@ import (
 )
 
 type monitoringNetworkType struct {
-	Times int				`json:"times"`
-	Runtime  int			`json:"runtime"`
-	DeviceType []string		`json:"deviceType"`
+	Times 		int				`json:"times"`
+	Runtime  	int				`json:"runtime"`
+	DeviceType 	[]string		`json:"deviceType"`
+	LogPath		string			`json:"logPath"`
 }
 
 func updateError(dev models.DeviceType, errorStatus bool, ) (bool, string) {
@@ -41,21 +42,22 @@ func updateError(dev models.DeviceType, errorStatus bool, ) (bool, string) {
 	return true, "Success: Error status updated for device"
 }
 
-func statusChecking(dev models.DeviceType, lostPercent float64) {
-	fmt.Printf("Device Data: %+v\n", dev)
-	fmt.Printf("Time: %s | Name: %s | IP: %s | Device: %s | Lost Percent: %.2f%%\n",
+func statusChecking(dev models.DeviceType, lostPercent float64,logPath string) {
+	logText := fmt.Sprintf("Time: %s | Name: %s | IP: %s | Device: %s | Lost Percent: %.2f%%\n",
 		utils.GetCurrentTimeFormatted(), dev.Name, dev.IPAddress, dev.Device, lostPercent)
+
+	errWriteTxt := utils.WriteToTXT(logPath+dev.Name+".txt", logText, true)
+
+	if errWriteTxt != nil {
+		fmt.Println("Failed to write file .txt", errWriteTxt)
+	} 
 
 	if lostPercent == 100 && !dev.Error {
 		setError, errMsg := updateError(dev, true)
 
 		if !setError {
 			fmt.Println("Failed to update error status on device:", errMsg)
-		} else {
-			fmt.Println("Successfully updated error status on device.")
-		}
-
-		fmt.Println("Starting email alert process...")
+		} 
 
 		email := models.EmailStructure{
 			EmailData: models.EmailData{
@@ -75,16 +77,11 @@ func statusChecking(dev models.DeviceType, lostPercent float64) {
 
 	} else if lostPercent < 100 && dev.Error {
 		// Kirim email recovery bisa di sini
-		fmt.Println("Email Process Recove")
 		setError, errMsg := updateError(dev, false)
 
 		if !setError {
 			fmt.Println("Failed to update error status on device:", errMsg)
-		} else {
-			fmt.Println("Successfully updated error status on device.")
-		}
-
-		fmt.Println("Starting email alert process...")
+		} 
 
 		email := models.EmailStructure{
 			EmailData: models.EmailData{
@@ -106,7 +103,7 @@ func statusChecking(dev models.DeviceType, lostPercent float64) {
 }
 
 func MonitoringNetwork(stopChan chan struct{}) {
-	fmt.Println("Monitoring network started")
+	fmt.Println("Monitoring network started at",utils.GetCurrentTimeFormatted())
 
 	conf, err := config.LoadJSON[monitoringNetworkType]("config/monitoring-network.json")
 
@@ -129,12 +126,23 @@ func MonitoringNetwork(stopChan chan struct{}) {
 			}
 			defer db.Close()
 
-			// Query data dengan filter type
-			rows, err := db.Query(`
+			deviceTypes := conf.DeviceType // []string{"network", "server", "iot"}
+
+			placeholders := make([]string, len(deviceTypes))
+			args := make([]interface{}, len(deviceTypes))
+
+			for i, v := range deviceTypes {
+				placeholders[i] = "?"
+				args[i] = v
+			}
+
+			query := fmt.Sprintf(`
 				SELECT *
-				FROM devices 
-				WHERE type = 'network' OR type = 'server'
-			`)
+				FROM devices
+				WHERE type IN (%s)
+			`, strings.Join(placeholders, ","))
+
+			rows, err := db.Query(query, args...)
 			if err != nil {
 				panic(err)
 			}
@@ -159,9 +167,6 @@ func MonitoringNetwork(stopChan chan struct{}) {
 				if err != nil {
 					panic(err)
 				}
-				fmt.Printf("ID: %d\nName: %s\nIP: %s\nDevice: %s\nError: %t\nDescription: %s\nDownTime: %v\nType: %s\n\n",
-					d.ID, d.Name, d.IPAddress, d.Device, d.Error, d.Description, d.DownTime, d.Type)
-
 				devices = append(devices, d)
 			}
 
@@ -170,9 +175,9 @@ func MonitoringNetwork(stopChan chan struct{}) {
 			}
 			for i := range devices {
 				dev := &devices[i]
-				replies, err := utils.PingDivice(dev.IPAddress, times)
+				replies, err := utils.PingDevice(dev.IPAddress, times)
 				if err != nil {
-					statusChecking(*dev, 100)
+					statusChecking(*dev, 100,conf.LogPath)
 					continue
 				}
 
@@ -196,10 +201,10 @@ func MonitoringNetwork(stopChan chan struct{}) {
 				}
 				lostPercent := (float64(lostCount) / float64(times)) * 100
 
-				statusChecking(*dev, lostPercent)
+				statusChecking(*dev, lostPercent,conf.LogPath)
 			}
 		case <-stopChan:
-			fmt.Println("Monitoring network stopped")
+			fmt.Println("Monitoring network stopped at",utils.GetCurrentTimeFormatted())
 			return
 		}
 	}

@@ -2,9 +2,11 @@ package main
 
 import (
 	"SystemRemoteDevice/project"
+	"SystemRemoteDevice/utils/schedule"
 	"fmt"
 	"net/http"
 	"sync"
+	"github.com/robfig/cron/v3"
 )
 
 var (
@@ -69,6 +71,16 @@ func startCheckSystemHasError(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	
+	go func() {
+		c := cron.New()
+
+		c.AddFunc("0 0 1 * *", schedule.ClearMonitoringLog)
+		c.AddFunc("0 9 * * 1", schedule.RestartComputer)
+
+		c.Start()
+	}()
+
 	// Route for Monitoring Network
 	http.HandleFunc("/project/monitoring-network/start", startMonitoringHandler)
 	http.HandleFunc("/project/monitoring-network/status", statusMonitoringHandler)

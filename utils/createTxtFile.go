@@ -6,14 +6,21 @@ import (
 )
 
 // Buat fungsi reusable
-func WriteToTXT(filename, content string) error {
+func WriteToTXT(filename, content string, appendMode bool) error {
 	dir := getDirFromPath(filename)
-	err := os.MkdirAll(dir, os.ModePerm) 
+	err := os.MkdirAll(dir, os.ModePerm)
 	if err != nil {
 		return err
 	}
 
-	file, err := os.Create(filename)
+	var flag int
+	if appendMode {
+		flag = os.O_APPEND | os.O_CREATE | os.O_WRONLY
+	} else {
+		flag = os.O_CREATE | os.O_WRONLY | os.O_TRUNC
+	}
+
+	file, err := os.OpenFile(filename, flag, 0644)
 	if err != nil {
 		return err
 	}

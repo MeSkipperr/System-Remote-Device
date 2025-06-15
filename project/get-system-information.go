@@ -204,7 +204,7 @@ func GetSystemInformation() {
 		}
 	}
 
-	errWriteTxt := utils.WriteToTXT(logPath, summaryOut.String())
+	errWriteTxt := utils.WriteToTXT(logPath, summaryOut.String(),false)
 	if errWriteTxt != nil {
 		fmt.Println("Error:", errWriteTxt)
 		return

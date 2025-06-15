@@ -6,7 +6,7 @@ import (
 	"strconv"
 )
 
-func PingDivice(ip string, times int) (string, error) {
+func PingDevice(ip string, times int) (string, error) {
 	if ip == "" {
 		return "", fmt.Errorf("IP address cannot be empty")
 	}

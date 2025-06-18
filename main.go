@@ -1,11 +1,13 @@
 package main
 
 import (
+	"SystemRemoteDevice/config"
 	"SystemRemoteDevice/project"
 	"SystemRemoteDevice/utils/schedule"
 	"fmt"
 	"net/http"
 	"sync"
+
 	"github.com/robfig/cron/v3"
 )
 
@@ -15,6 +17,12 @@ var (
 	monitorStopCh  chan struct{}
 )
 
+type scheduleConfig struct {
+	RemoveYoutubeData       	string      `json:"removeYoutubeData"`
+	GetUptimeADBDevices       	string      `json:"getUptimeADBDevices"`
+	RestartComputer       		string      `json:"restartComputer"`
+	ClearLogMonitoring       	string      `json:"clearLogMonitoring"`
+}
 // === Monitoring Network Handlers ===
 
 // Starts the network monitoring process
@@ -77,10 +85,17 @@ func startGetUptimeADB(w http.ResponseWriter, r *http.Request) {
 func main() {
 	
 	go func() {
+		scheduleConfig, errLoadJson := config.LoadJSON[scheduleConfig]("utils/schedule/schedule.json")
+		if errLoadJson != nil {	
+			fmt.Println("Failed to load config from json", errLoadJson)
+			return 
+		} 
 		c := cron.New()
 
-		c.AddFunc("0 0 1 * *", schedule.ClearMonitoringLog)
-		c.AddFunc("0 9 * * 1", schedule.RestartComputer)
+		c.AddFunc(scheduleConfig.ClearLogMonitoring	, schedule.ClearMonitoringLog)
+		c.AddFunc(scheduleConfig.RestartComputer	, schedule.RestartComputer)
+		c.AddFunc(scheduleConfig.GetUptimeADBDevices, project.GetUptimeADB)
+		c.AddFunc(scheduleConfig.RemoveYoutubeData	, project.RemoveYouTubeData)
 
 		c.Start()
 	}()

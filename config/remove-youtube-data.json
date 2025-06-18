@@ -1,5 +1,4 @@
 {
-    "schedule": "0 13 * * *",
     "logPath": "log/remove-youtube-data.txt",
     "deviceType": [
         "IP TV"

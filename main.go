@@ -69,6 +69,10 @@ func startCheckSystemHasError(w http.ResponseWriter, r *http.Request) {
 	go project.CheckSystemHasError()
 	fmt.Fprintln(w, "CheckSystemHas Error retrieval has been started.")
 }
+func startGetUptimeADB(w http.ResponseWriter, r *http.Request) {
+	go project.GetUptimeADB()
+	fmt.Fprintln(w, "Get uptime device ADB process initiated.")
+}
 
 func main() {
 	
@@ -89,6 +93,7 @@ func main() {
 	// Route for System Information
 	http.HandleFunc("/project/get-system-information/start", startSysInfoHandler)
 	http.HandleFunc("/project/check-system-has-error/start", startCheckSystemHasError)
+	http.HandleFunc("/project/get-uptime-ADB-devices/start", startGetUptimeADB)
 
 	fmt.Println("Server is running at http://localhost:8080")
 	http.ListenAndServe(":8080", nil)

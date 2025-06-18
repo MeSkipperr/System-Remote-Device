@@ -1,0 +1,7 @@
+{
+    "schedule": "0 10 * * *",
+    "logPath": "log/get-uptime.txt",
+    "deviceType": [
+        "IP TV"
+    ]
+}

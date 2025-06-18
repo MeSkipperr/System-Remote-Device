@@ -6,13 +6,21 @@ import (
 	"SystemRemoteDevice/config"
 	"SystemRemoteDevice/models"
 	"SystemRemoteDevice/utils"
+	"database/sql"
 	"fmt"
+	_ "modernc.org/sqlite"
 	"strconv"
 	"strings"
 	"time"
 )
 
-func verifyYouTubeData(conf models.AdbConfigType,devices []models.DeviceType,times int, logPath string) (bool, string) {
+func verifyYouTubeData(devices []models.DeviceType, logPath string) (bool, string) {
+	conf, err := config.LoadJSON[models.AdbConfigType]("config/adb.json")
+	if err != nil {	
+		fmt.Println("Failed to load config from json", err)
+		return false, "Failed to load config from json: " + err.Error()
+	} 
+
 	fmt.Println("Verifying YouTube data...")
 	adbPath := conf.AdbPath
 	if adbPath == "" {
@@ -48,7 +56,9 @@ func verifyYouTubeData(conf models.AdbConfigType,devices []models.DeviceType,tim
 
 	devicesAfterVerification := []models.DeviceType{}
 
-	for i := 0; i < times; i++ {
+	startProcessTime := utils.GetCurrentTimeFormatted();
+
+	for i := 0; i < conf.VerificationSteps; i++ {
 		utils.RunCommand(strings.ReplaceAll(conf.AdbCommandTemplate["kill"], "{adbPath}", adbPath))
 		time.Sleep(5 * time.Second)// Wait for 5 seconds to ensure the ADB server is killed
 	
@@ -88,50 +98,138 @@ func verifyYouTubeData(conf models.AdbConfigType,devices []models.DeviceType,tim
 			devicesAfterVerification = append(devicesAfterVerification, devices[j])
 		}
 	}
+
+	// Write log messages to the file .txt file
+	endProcessTime := utils.GetCurrentTimeFormatted();
+
+	content := fmt.Sprintf(
+		"Process Started At : %s\n"+
+		"Process Finished At: %s\n\n",
+		startProcessTime,
+		endProcessTime,
+	)
+
+	content += "| No | Name Device | IP Address | Status Massage\n"
+
 	// Write the verification results to the log file
-	for _, device := range devicesAfterVerification {
-		
+	for i , device := range devicesAfterVerification {
+		line := fmt.Sprintf("| %d | %s | %s| %s \n", i, device.Name, device.IPAddress , device.StatusMessage)
+		content += line
 	}
 
-	utils.WriteToTXT(logPath, devicesAfterVerification, false)
+	errWriteTxt := utils.WriteToTXT(logPath, content, false)
+	if errWriteTxt != nil {
+		return false, "Failed to write verification results to log file: " + errWriteTxt.Error()
+	}
 
 	return true, "YouTube data verification successful."
+}
+
+type removalYoutube	 struct {
+	Schedule string `json:"schedule"`
+	LogPath  string `json:"logPath"`
+	DeviceType []string `json:"deviceType"`
 }
 
 func RemoveYouTubeData() {
 // func main() {	
 	fmt.Println("YouTube data removal process initiated.")
 
-	conf, err := config.LoadJSON[models.AdbConfigType]("config/adb.json")
-	if err != nil {	
-		fmt.Println("Failed to load config from json", err)
+	conf, errLoadJson := config.LoadJSON[removalYoutube]("config/remove-youtube-data.json")
+	if errLoadJson != nil {	
+		fmt.Println("Failed to load config from json", errLoadJson)
 		return 
-	}
-	devices := []models.DeviceType{
-		{
-			ID:          1,
-			Name:        "Device1",	
-			Type:        "network",
-		},
-		{
-			ID:          2,
-			Name:        "Device1",	
-			Type:		 "server",
-		},
-		{
-			ID:          3,
-			Name:        "Device1",	
-			Type:		 "iot",
-		},
-	}
+	} 
 
-	status, msg := verifyYouTubeData(conf, devices, conf.VerificationSteps, "logs/youtube_data_removal.log")
+			db, err := sql.Open("sqlite", "file:./resource/app.db")
+			if err != nil {
+				panic(err)
+			}
+			defer db.Close()
+
+			deviceTypes := conf.DeviceType 	
+
+			placeholders := make([]string, len(deviceTypes))
+			args := make([]interface{}, len(deviceTypes))
+
+			for i, v := range deviceTypes {
+				placeholders[i] = "?"
+				args[i] = v
+			}
+
+			query := fmt.Sprintf(`
+				SELECT *
+				FROM devices
+				WHERE type IN (%s)
+			`, strings.Join(placeholders, ","))
+
+			rows, err := db.Query(query, args...)
+			if err != nil {
+				panic(err)
+			}
+			defer rows.Close()
+
+			// Proses hasil query
+
+			devices := []models.DeviceType{}
+
+			for rows.Next() {
+				var d models.DeviceType
+				err := rows.Scan(
+					&d.ID,
+					&d.Name,
+					&d.IPAddress,
+					&d.Device,
+					&d.Error,
+					&d.Description,
+					&d.DownTime,
+					&d.Type,
+				)
+				if err != nil {
+					panic(err)
+				}
+				devices = append(devices, d)
+			}
+
+			if err = rows.Err(); err != nil {
+				panic(err)
+			}
+
+	status, msg := verifyYouTubeData(devices, conf.LogPath)
 
 	if !status {
 		fmt.Println("Error during YouTube data verification:", msg)
 		return
 	}
-		
+	
+		email := models.EmailStructure{
+		EmailData: models.EmailData{
+		Subject:       "YouTube Data Clearance Report - Successful & Failed Devices",
+		BodyTemplate:  `
+Dear {userName},
+
+Attached is the latest report on the YouTube data clearance process for your network devices.
+The report includes details of devices that successfully cleared data and those that encountered errors.
+
+Please review the attached log file for more information.
+
+Best regards, 
+Courtyard by Marriott Bali Nusa Dua Resort
+			`,
+			FileAttachment: []string{
+				conf.LogPath,
+			},
+		},
+	}
+
+	success, message := utils.SendEmail(email)
+
+	if success {
+		fmt.Println("Email sent successfully:", message)
+	} else {
+		fmt.Println("Failed to send email:", message)
+		return
+	}
 
 	fmt.Println("YouTube data has been removed successfully.")
 }

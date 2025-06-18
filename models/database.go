@@ -11,5 +11,5 @@ type DeviceType struct {
     Description string    
     DownTime    time.Time
     Type        string    
-    StatusMessage  string // Optional field to store error messages
+    StatusMessage  string 
 }

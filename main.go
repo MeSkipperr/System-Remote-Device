@@ -69,18 +69,6 @@ func statusMonitoringHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func startSysInfoHandler(w http.ResponseWriter, r *http.Request) {
-	go project.GetSystemInformation()
-	fmt.Fprintln(w, "System Information retrieval has been started.")
-}
-func startCheckSystemHasError(w http.ResponseWriter, r *http.Request) {
-	go project.CheckSystemHasError()
-	fmt.Fprintln(w, "CheckSystemHas Error retrieval has been started.")
-}
-func startGetUptimeADB(w http.ResponseWriter, r *http.Request) {
-	go project.GetUptimeADB()
-	fmt.Fprintln(w, "Get uptime device ADB process initiated.")
-}
 
 func main() {
 	
@@ -99,16 +87,15 @@ func main() {
 
 		c.Start()
 	}()
-
+	//auto running function at first time
+	go func() {
+		project.GetSystemInformation()
+		project.CheckSystemHasError()	
+	}()
 	// Route for Monitoring Network
 	http.HandleFunc("/project/monitoring-network/start", startMonitoringHandler)
 	http.HandleFunc("/project/monitoring-network/status", statusMonitoringHandler)
 	http.HandleFunc("/project/monitoring-network/stop", stopMonitoringHandler)
-
-	// Route for System Information
-	http.HandleFunc("/project/get-system-information/start", startSysInfoHandler)
-	http.HandleFunc("/project/check-system-has-error/start", startCheckSystemHasError)
-	http.HandleFunc("/project/get-uptime-ADB-devices/start", startGetUptimeADB)
 
 	fmt.Println("Server is running at http://localhost:8080")
 	http.ListenAndServe(":8080", nil)

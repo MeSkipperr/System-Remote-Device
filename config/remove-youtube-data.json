@@ -1,5 +1,5 @@
 {
-    "logPath": "log/remove-youtube-data.txt",
+    "logPath": "output/remove-youtube-data.txt",
     "deviceType": [
         
     ]

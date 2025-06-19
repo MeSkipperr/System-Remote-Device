@@ -7,7 +7,7 @@ import (
 )
 
 func HomeHandler(w http.ResponseWriter, r *http.Request) {
-    tmplPath := filepath.Join("templates", "index.html")
+    tmplPath := filepath.Join("template","html","index.html")
     tmpl, err := template.ParseFiles(tmplPath)
     if err != nil {
         http.Error(w, "Error loading template", http.StatusInternalServerError)

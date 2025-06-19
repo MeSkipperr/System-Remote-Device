@@ -15,5 +15,5 @@
         } 
         
     ],
-    "logPath":"log/device-information.txt"    
+    "logPath":"output/device-information.txt"    
 }

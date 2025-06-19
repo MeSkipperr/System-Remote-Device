@@ -1,36 +1,62 @@
 package project
 
 import (
+	"SystemRemoteDevice/config"
 	"SystemRemoteDevice/models"
 	"SystemRemoteDevice/utils"
 	"fmt"
+	"strings"
+
 	"github.com/xuri/excelize/v2"
 
 	"database/sql"
+
 	_ "modernc.org/sqlite"
 )
+
+type systemHasError	 struct {
+	LogPath  string `json:"logPath"`
+	DeviceType []string `json:"deviceType"`
+}
 
 func CheckSystemHasError() {
 	fmt.Println("Checking System Has Error Starting...")
 
-	outputPath := "log/error_devices.xlsx"
+	
+	conf, errLoadJson := config.LoadJSON[systemHasError]("config/check-system-has-error.json")
+	if errLoadJson != nil {	
+		fmt.Println("Failed to load config from json", errLoadJson)
+		return 
+		} 
+	outputPath := conf.LogPath;
+
 	db, err := sql.Open("sqlite", "file:./resource/app.db")
 	if err != nil {
 		panic(err)
 	}
 	defer db.Close()
 
-	rows, err := db.Query(`
+	deviceTypes := conf.DeviceType 	
+
+	placeholders := make([]string, len(deviceTypes))
+	args := make([]interface{}, len(deviceTypes))
+
+	for i, v := range deviceTypes {
+		placeholders[i] = "?"
+		args[i] = v
+	}
+
+	query := fmt.Sprintf(`
 		SELECT *
-		FROM devices 
-		WHERE error = 1
-		ORDER BY name ASC
-	`)
+		FROM devices
+		WHERE type IN (%s)
+	`, strings.Join(placeholders, ","))
+
+	rows, err := db.Query(query, args...)
 	if err != nil {
 		panic(err)
 	}
 	defer rows.Close()
-
 
 	errorDevices := []models.DeviceType{}
 

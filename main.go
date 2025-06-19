@@ -3,19 +3,15 @@ package main
 import (
 	"SystemRemoteDevice/config"
 	"SystemRemoteDevice/project"
+	"SystemRemoteDevice/routes"
 	"SystemRemoteDevice/utils/schedule"
 	"fmt"
 	"net/http"
-	"sync"
 
 	"github.com/robfig/cron/v3"
 )
 
-var (
-	muMonitor      sync.Mutex
-	monitorRunning bool
-	monitorStopCh  chan struct{}
-)
+
 
 type scheduleConfig struct {
 	RemoveYoutubeData       	string      `json:"removeYoutubeData"`
@@ -23,51 +19,7 @@ type scheduleConfig struct {
 	RestartComputer       		string      `json:"restartComputer"`
 	ClearLogMonitoring       	string      `json:"clearLogMonitoring"`
 }
-// === Monitoring Network Handlers ===
 
-// Starts the network monitoring process
-func startMonitoringHandler(w http.ResponseWriter, r *http.Request) {
-	muMonitor.Lock()
-	defer muMonitor.Unlock()
-
-	if monitorRunning {
-		fmt.Fprintln(w, "Monitoring Network is already running.")
-		return
-	}
-
-	monitorStopCh = make(chan struct{})
-	monitorRunning = true
-
-	go project.MonitoringNetwork(monitorStopCh)
-	fmt.Fprintln(w, "Monitoring Network has been started.")
-}
-
-// Stops the network monitoring process
-func stopMonitoringHandler(w http.ResponseWriter, r *http.Request) {
-	muMonitor.Lock()
-	defer muMonitor.Unlock()
-
-	if !monitorRunning {
-		fmt.Fprintln(w, "Monitoring Network is not currently running.")
-		return
-	}
-
-	close(monitorStopCh)
-	monitorRunning = false
-	fmt.Fprintln(w, "Monitoring Network has been stopped.")
-}
-
-// Returns the current status of the monitoring process
-func statusMonitoringHandler(w http.ResponseWriter, r *http.Request) {
-	muMonitor.Lock()
-	defer muMonitor.Unlock()
-
-	if monitorRunning {
-		fmt.Fprintln(w, "Monitoring Network Status: ACTIVE")
-	} else {
-		fmt.Fprintln(w, "Monitoring Network Status: INACTIVE")
-	}
-}
 
 
 func main() {
@@ -88,15 +40,14 @@ func main() {
 		c.Start()
 	}()
 	//auto running function at first time
-	go func() {
-		project.GetSystemInformation()
-		project.CheckSystemHasError()	
-	}()
-	// Route for Monitoring Network
-	http.HandleFunc("/project/monitoring-network/start", startMonitoringHandler)
-	http.HandleFunc("/project/monitoring-network/status", statusMonitoringHandler)
-	http.HandleFunc("/project/monitoring-network/stop", stopMonitoringHandler)
 
-	fmt.Println("Server is running at http://localhost:8080")
-	http.ListenAndServe(":8080", nil)
+	// go func() {
+	// 	project.GetSystemInformation()
+	// 	project.CheckSystemHasError()	
+	// 	}()
+		
+	r := routes.RegisterRoutes()
+
+	fmt.Println("Server running on http://localhost:8080")
+	http.ListenAndServe(":8080", r) 
 }

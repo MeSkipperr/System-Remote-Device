@@ -1,0 +1,11 @@
+# .air.toml
+[build]
+cmd = "go build -o tmp/main.exe ."  # build main.go di folder saat ini
+bin = "tmp/main.exe"                # hasil binary
+full_bin = ""                       # abaikan
+
+include_ext = ["go"]
+exclude_dir = ["tmp", "vendor"]
+
+[log]
+time = true

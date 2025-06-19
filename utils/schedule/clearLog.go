@@ -38,3 +38,23 @@ func ClearMonitoringLog() {
 	})
 
 }
+
+// DeleteLogFiles deletes all .log files in the ./log directory.
+func DeleteLogFiles() {
+	logDir := "./log"
+
+	files, _ := filepath.Glob(filepath.Join(logDir, "*.log"))
+
+	if len(files) == 0 {
+		fmt.Println("No .log files found in:", logDir)
+		return
+	}
+
+	for _, file := range files {
+		if err := os.Remove(file); err != nil {
+			fmt.Printf("Failed to delete file %s: %v\n", file, err)
+		} else {
+			fmt.Printf("Deleted: %s\n", file)
+		}
+	}
+}

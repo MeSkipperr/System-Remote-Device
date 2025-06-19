@@ -86,19 +86,19 @@ func RunSSHCommands(device models.DeviceType,deviceCommand deviceCommandType) (s
 
 
 func GetSystemInformation() {
-	fmt.Println("Get System Information Starting...")
-
 	configData, errCommand := config.LoadJSON[configType]("config/command-information.json")
-
-	deviceCommand := configData.Device
-	outputPath := configData.OutputPath
-
+	
 	if errCommand != nil{
 		fmt.Println("Failed to load config from json", errCommand)
 		return 
 	}
-
-
+	deviceCommand := configData.Device
+	outputPath := configData.OutputPath
+	
+	if errLog := utils.WriteFormattedLog(configData.LogPath, "INFO", "Get System Information", "Get System Information Starting..."); errLog != nil {
+		fmt.Printf("Failed to write log: %v\n", errLog)
+	}
+	
 	selectedDevices := []string{}
 
 	for _, d := range deviceCommand{
@@ -107,6 +107,9 @@ func GetSystemInformation() {
 
 	db, err := sql.Open("sqlite", "file:./resource/app.db")
 	if err != nil {
+		if errLog := utils.WriteFormattedLog(configData.LogPath, "ERROR", "database", fmt.Sprintf("Error connecting to database: %v", err)); errLog != nil {
+			fmt.Printf("Failed to write log: %v\n", errLog)
+		}
 		panic(err)
 	}
 	defer db.Close()
@@ -128,6 +131,9 @@ func GetSystemInformation() {
 	rows, err := db.Query(query, args...)
 
 	if err != nil {
+		if errLog := utils.WriteFormattedLog(configData.LogPath, "ERROR", "database", fmt.Sprintf("Error query to database: %v", err)); errLog != nil {
+			fmt.Printf("Failed to write log: %v\n", errLog)	
+		}
 		panic(err)
 	}
 	defer rows.Close()
@@ -148,6 +154,9 @@ func GetSystemInformation() {
 			&d.Type,
 		)
 		if err != nil {
+			if errLog := utils.WriteFormattedLog(configData.LogPath, "ERROR", "database", fmt.Sprintf("Query type mismatch: %v", err)); errLog != nil {
+				fmt.Printf("Failed to write log: %v\n", errLog)
+			}
 			panic(err)
 		}
 
@@ -155,12 +164,14 @@ func GetSystemInformation() {
 	}
 
 	if err = rows.Err(); err != nil {
+		if errLog := utils.WriteFormattedLog(configData.LogPath, "ERROR", "database", fmt.Sprintf(" %v", err)); errLog != nil {
+			fmt.Printf("Failed to write log: %v\n", errLog)
+		}
 		panic(err)
 	}
 
 
 	var summaryOut strings.Builder
-	//! alg errro
 	for _, device := range devices {
 		var commandList deviceCommandType
 		found := false
@@ -208,9 +219,15 @@ func GetSystemInformation() {
 	errWriteTxt := utils.WriteToTXT(outputPath, summaryOut.String(),false)
 	if errWriteTxt != nil {
 		fmt.Println("Error:", errWriteTxt)
+		if errLog := utils.WriteFormattedLog(configData.LogPath, "ERROR", "Get System Information", fmt.Sprintf("Failed to write data in file: %v", errWriteTxt)); errLog != nil {
+			fmt.Printf("Failed to write log: %v\n", errLog)	
+		}
 		return
 	} else {
 		fmt.Println("Success write data in file : ",outputPath)
+		if errLog := utils.WriteFormattedLog(configData.LogPath, "INFO", "Get System Information", fmt.Sprintf("Success write data in file: %s", outputPath)); errLog != nil {
+			fmt.Printf("Failed to write log: %v\n", errLog)	
+		}
 	}
 
 	email := models.EmailStructure{
@@ -232,10 +249,17 @@ Courtyard by Marriott Bali Nusa Dua Resort
 	success, message := utils.SendEmail(email)
 
 	if success {
-		fmt.Println("Email sent successfully:", message)
+		if errLog := utils.WriteFormattedLog(configData.LogPath, "INFO", "Email", fmt.Sprintf("Email sent successfully: %s", message)); errLog != nil {
+			fmt.Printf("Failed to write log: %v\n", errLog)
+		}
 	} else {
-		fmt.Println("Failed to send email:", message)
+		if errLog := utils.WriteFormattedLog(configData.LogPath, "ERROR", "Email", fmt.Sprintf("Failed to send email: %s", message)); errLog != nil {
+			fmt.Printf("Failed to write log: %v\n", errLog)
+		}
 		return
 	}
-	fmt.Println("Get System Information End")
+
+	if errLog := utils.WriteFormattedLog(configData.LogPath, "INFO", "Get System Information", "Function has been completed"); errLog != nil {
+		fmt.Printf("Failed to write log: %v\n", errLog)
+	}
 }

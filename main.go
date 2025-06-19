@@ -33,6 +33,7 @@ func main() {
 		c := cron.New()
 
 		c.AddFunc(scheduleConfig.ClearLogMonitoring	, schedule.ClearMonitoringLog)
+		c.AddFunc(scheduleConfig.ClearLogMonitoring	, schedule.DeleteLogFiles)
 		c.AddFunc(scheduleConfig.RestartComputer	, schedule.RestartComputer)
 		c.AddFunc(scheduleConfig.GetUptimeADBDevices, project.GetUptimeADB)
 		c.AddFunc(scheduleConfig.RemoveYoutubeData	, project.RemoveYouTubeData)
@@ -41,10 +42,10 @@ func main() {
 	}()
 	//auto running function at first time
 
-	// go func() {
-	// 	project.GetSystemInformation()
-	// 	project.CheckSystemHasError()	
-	// 	}()
+	go func() {
+		project.GetSystemInformation()
+		project.CheckSystemHasError()	
+	}()
 		
 	r := routes.RegisterRoutes()
 

@@ -44,20 +44,32 @@ func updateError(dev models.DeviceType, errorStatus bool, ) (bool, string) {
 }
 
 func statusChecking(dev models.DeviceType, lostPercent float64,outputPath string) {
+	conf, err := config.LoadJSON[monitoringNetworkType]("config/monitoring-network.json")
+
+	if err != nil {	
+		fmt.Println("Failed to load config from json", err)
+		return 
+	}
+
 	logText := fmt.Sprintf("Time: %s | Name: %s | IP: %s | Device: %s | Lost Percent: %.2f%%\n",
 		utils.GetCurrentTimeFormatted(), dev.Name, dev.IPAddress, dev.Device, lostPercent)
 
 	errWriteTxt := utils.WriteToTXT(outputPath+dev.Name+".txt", logText, true)
 
 	if errWriteTxt != nil {
-		fmt.Println("Failed to write file .txt", errWriteTxt)
+		if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "Write Log", fmt.Sprintf("Failed to write file .txt: %v", errWriteTxt)); errLog != nil {
+			fmt.Printf("Failed to write log: %v\n", errLog)	
+		}
+		return
 	} 
 
 	if lostPercent == 100 && !dev.Error {
 		setError, errMsg := updateError(dev, true)
 
 		if !setError {
-			fmt.Println("Failed to update error status on device:", errMsg)
+			if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "Update Error Status", fmt.Sprintf("Failed to update error status on device: %v", errMsg)); errLog != nil {
+				fmt.Printf("Failed to write log: %v\n", errLog)
+			}
 		} 
 
 		email := models.EmailStructure{
@@ -71,9 +83,13 @@ func statusChecking(dev models.DeviceType, lostPercent float64,outputPath string
 		success, message := utils.SendEmail(email)
 
 		if success {
-			fmt.Println("Email sent successfully:", message)
+			if errLog := utils.WriteFormattedLog(conf.LogPath, "INFO", "Email", fmt.Sprintf("Email sent successfully: %s", message)); errLog != nil {
+				fmt.Printf("Failed to write log: %v\n", errLog)
+			}
 		} else {
-			fmt.Println("Failed to send email:", message)
+			if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "Email", fmt.Sprintf("Failed to send email: %s", message)); errLog != nil {
+				fmt.Printf("Failed to write log: %v\n", errLog)
+			}
 		}
 
 	} else if lostPercent < 100 && dev.Error {
@@ -81,7 +97,9 @@ func statusChecking(dev models.DeviceType, lostPercent float64,outputPath string
 		setError, errMsg := updateError(dev, false)
 
 		if !setError {
-			fmt.Println("Failed to update error status on device:", errMsg)
+			if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "Update Error Status", fmt.Sprintf("Failed to update error status on device: %v", errMsg)); errLog != nil {
+				fmt.Printf("Failed to write log: %v\n", errLog)
+			}
 		} 
 
 		email := models.EmailStructure{
@@ -95,16 +113,19 @@ func statusChecking(dev models.DeviceType, lostPercent float64,outputPath string
 		success, message := utils.SendEmail(email)
 
 		if success {
-			fmt.Println("Email sent successfully:", message)
+			if errLog := utils.WriteFormattedLog(conf.LogPath, "INFO", "Email", fmt.Sprintf("Email sent successfully: %s", message)); errLog != nil {
+				fmt.Printf("Failed to write log: %v\n", errLog)
+			}
 		} else {
-			fmt.Println("Failed to send email:", message)
+			if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "Email", fmt.Sprintf("Failed to send email: %s", message)); errLog != nil {
+				fmt.Printf("Failed to write log: %v\n", errLog)
+			}
 		}
 
 	}
 }
 
 func MonitoringNetwork(stopChan chan struct{}) {
-	fmt.Println("Monitoring network started at",utils.GetCurrentTimeFormatted())
 
 	conf, err := config.LoadJSON[monitoringNetworkType]("config/monitoring-network.json")
 
@@ -112,6 +133,11 @@ func MonitoringNetwork(stopChan chan struct{}) {
 		fmt.Println("Failed to load config from json", err)
 		return 
 	}
+
+	if errLog := utils.WriteFormattedLog(conf.LogPath, "INFO", "Monitoring Network",fmt.Sprintf("Monitoring network started at %s",utils.GetCurrentTimeFormatted())); errLog != nil {
+		fmt.Printf("Failed to write log: %v\n", errLog)
+	}
+
 	times := conf.Times
 
 	ticker := time.NewTicker(time.Duration(conf.Runtime) * time.Second)
@@ -123,6 +149,9 @@ func MonitoringNetwork(stopChan chan struct{}) {
 
 			db, err := sql.Open("sqlite", "file:./resource/app.db")
 			if err != nil {
+				if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "database", fmt.Sprintf("Error connecting to database: %v", err)); errLog != nil {
+					fmt.Printf("Failed to write log: %v\n", errLog)
+				}
 				panic(err)
 			}
 			defer db.Close()
@@ -145,6 +174,10 @@ func MonitoringNetwork(stopChan chan struct{}) {
 
 			rows, err := db.Query(query, args...)
 			if err != nil {
+				if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "database", fmt.Sprintf("Error query to database: %v", err)); errLog != nil {
+					fmt.Printf("Failed to write log: %v\n", errLog)	
+				}
+
 				panic(err)
 			}
 			defer rows.Close()
@@ -166,12 +199,18 @@ func MonitoringNetwork(stopChan chan struct{}) {
 					&d.Type,
 				)
 				if err != nil {
+					if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "database", fmt.Sprintf("Query type mismatch: %v", err)); errLog != nil {
+						fmt.Printf("Failed to write log: %v\n", errLog)
+					}
 					panic(err)
 				}
 				devices = append(devices, d)
 			}
 
 			if err = rows.Err(); err != nil {
+				if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "database", fmt.Sprintf("Error reading rows: %v", err)); errLog != nil {
+					fmt.Printf("Failed to write log: %v\n", errLog)
+				}
 				panic(err)
 			}
 			for i := range devices {
@@ -179,6 +218,15 @@ func MonitoringNetwork(stopChan chan struct{}) {
 				replies, err := utils.PingDevice(dev.IPAddress, times)
 				if err != nil {
 					statusChecking(*dev, 100,conf.OutputPath)
+					if errLog := utils.WriteFormattedLog(
+						conf.LogPath,
+						"INFO",
+						"Ping Device",
+						fmt.Sprintf("Name: %s | IP: %s | Device: %s | Lost Percent: %.2f%%", dev.Name, dev.IPAddress, dev.Device, 100.0),
+					); errLog != nil {
+						fmt.Printf("Failed to write log: %v\n", errLog)
+					}
+
 					continue
 				}
 
@@ -203,9 +251,19 @@ func MonitoringNetwork(stopChan chan struct{}) {
 				lostPercent := (float64(lostCount) / float64(times)) * 100
 
 				statusChecking(*dev, lostPercent,conf.OutputPath)
+				if errLog := utils.WriteFormattedLog(
+					conf.LogPath,
+					"INFO",
+					"Ping Device",
+					fmt.Sprintf("Name: %s | IP: %s | Device: %s | Lost Percent: %.2f%%", dev.Name, dev.IPAddress, dev.Device, lostPercent),
+				); errLog != nil {
+					fmt.Printf("Failed to write log: %v\n", errLog)
+				}
 			}
 		case <-stopChan:
-			fmt.Println("Monitoring network stopped at",utils.GetCurrentTimeFormatted())
+			if errLog := utils.WriteFormattedLog(conf.LogPath, "INFO", "Monitoring Network", fmt.Sprintf("Monitoring network stopped at %s", utils.GetCurrentTimeFormatted())); errLog != nil {
+				fmt.Printf("Failed to write log: %v\n", errLog)
+			}
 			return
 		}
 	}

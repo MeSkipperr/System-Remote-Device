@@ -21,18 +21,21 @@ type systemHasError	 struct {
 }
 
 func CheckSystemHasError() {
-	fmt.Println("Checking System Has Error Starting...")
-
-	
 	conf, errLoadJson := config.LoadJSON[systemHasError]("config/check-system-has-error.json")
 	if errLoadJson != nil {	
 		fmt.Println("Failed to load config from json", errLoadJson)
 		return 
-		} 
+	} 
+	if errLog := utils.WriteFormattedLog(conf.LogPath, "INFO", "Check System Has Error", "Function has been started"); errLog != nil {
+		fmt.Printf("Failed to write log: %v\n", errLog)
+	}
 	outputPath := conf.OutputPath;
 
 	db, err := sql.Open("sqlite", "file:./resource/app.db")
 	if err != nil {
+		if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "database", fmt.Sprintf("Error connecting to database: %v", err)); errLog != nil {
+			fmt.Printf("Failed to write log: %v\n", errLog)
+		}
 		panic(err)
 	}
 	defer db.Close()
@@ -55,6 +58,9 @@ func CheckSystemHasError() {
 
 	rows, err := db.Query(query, args...)
 	if err != nil {
+		if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "database", fmt.Sprintf("Error query to database database: %v", err)); errLog != nil {
+			fmt.Printf("Failed to write log: %v\n", errLog)
+		}
 		panic(err)
 	}
 	defer rows.Close()
@@ -74,12 +80,18 @@ func CheckSystemHasError() {
 			&d.Type,
 		)
 		if err != nil {
+			if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "database", fmt.Sprintf("Query type mismatch: %v", err)); errLog != nil {
+				fmt.Printf("Failed to write log: %v\n", errLog)
+			}
 			panic(err)
 		}
 		errorDevices = append(errorDevices, d)
 	}
 
 	if err = rows.Err(); err != nil {
+		if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "database", fmt.Sprintf(" %v", err)); errLog != nil {
+			fmt.Printf("Failed to write log: %v\n", errLog)
+		}
 		panic(err)
 	}
 
@@ -90,7 +102,9 @@ func CheckSystemHasError() {
 	sheet := "Error Devices"
 	index, errSheet := f.NewSheet(sheet)
 	if errSheet != nil {
-		fmt.Println("Gagal membuat sheet:", errSheet)
+		if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "xlsx", fmt.Sprintf("Error to make sheet %v", err)); errLog != nil {
+			fmt.Printf("Failed to write log: %v\n", errLog)
+		}
 		return
 	}
 	f.SetActiveSheet(index)
@@ -123,9 +137,13 @@ func CheckSystemHasError() {
 
 	// Simpan ke file
 	if errSheet := f.SaveAs(outputPath); errSheet != nil {
-		fmt.Println("Error to write file .xlsx", errSheet)
+		if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "xlsx", fmt.Sprintf("Error to save file %v", errSheet)); errLog != nil {
+			fmt.Printf("Failed to write log: %v\n", errLog)		
+		}
 	} else {
-		fmt.Println("File succesfully created in :", outputPath)
+		if errLog := utils.WriteFormattedLog(conf.LogPath, "INFO", "xlsx", fmt.Sprintf("File successfully created in: %s", outputPath)); errLog != nil {
+			fmt.Printf("Failed to write log: %v\n", errLog)
+		}
 	}
 
 		email := models.EmailStructure{
@@ -149,10 +167,19 @@ Courtyard by Marriott Bali Nusa Dua Resort
 
 	if success {
 		fmt.Println("Email sent successfully:", message)
+		if errLog := utils.WriteFormattedLog(conf.LogPath, "INFO", "email", fmt.Sprintf("Email sent successfully: %s", message)); errLog != nil {
+			fmt.Printf("Failed to write log: %v\n", errLog)		
+		}
 	} else {
 		fmt.Println("Failed to send email:", message)
+		if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "email", fmt.Sprintf("Failed to send email: %s", message)); errLog != nil {
+			fmt.Printf("Failed to write log: %v\n", errLog)
+		}
 		return
 	}
 
-	fmt.Println("System error check completed.")
+	if errLog := utils.WriteFormattedLog(conf.LogPath, "INFO", "Check System Has Error", "Function has been completed"); errLog != nil {
+		fmt.Printf("Failed to write log: %v\n", errLog)
+		return
+	}
 }

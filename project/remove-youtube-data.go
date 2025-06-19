@@ -141,9 +141,14 @@ func RemoveYouTubeData() {
 		fmt.Println("Failed to load config from json", errLoadJson)
 		return 
 	} 
-
+	if errLog := utils.WriteFormattedLog(conf.LogPath, "INFO", "Remove YouTube Data", "Function has been started"); errLog != nil {
+		fmt.Printf("Failed to write log: %v\n", errLog)
+	}
 			db, err := sql.Open("sqlite", "file:./resource/app.db")
 			if err != nil {
+				if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "database", fmt.Sprintf("Error connecting to database: %v", err)); errLog != nil {
+					fmt.Printf("Failed to write log: %v\n", errLog)
+				}
 				panic(err)
 			}
 			defer db.Close()
@@ -166,6 +171,9 @@ func RemoveYouTubeData() {
 
 			rows, err := db.Query(query, args...)
 			if err != nil {
+				if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "database", fmt.Sprintf("Error query to database: %v", err)); errLog != nil {
+					fmt.Printf("Failed to write log: %v\n", errLog)
+				}
 				panic(err)
 			}
 			defer rows.Close()
@@ -187,19 +195,27 @@ func RemoveYouTubeData() {
 					&d.Type,
 				)
 				if err != nil {
+					if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "database", fmt.Sprintf("Query type mismatch: %v", err)); errLog != nil {
+						fmt.Printf("Failed to write log: %v\n", errLog)
+					}
 					panic(err)
 				}
 				devices = append(devices, d)
 			}
 
 			if err = rows.Err(); err != nil {
+				if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "database", fmt.Sprintf("Error reading rows: %v", err)); errLog != nil {
+					fmt.Printf("Failed to write log: %v\n", errLog)
+				}
 				panic(err)
 			}
 
 	status, msg := verifyYouTubeData(devices, conf.OutputPath)
 
 	if !status {
-		fmt.Println("Error during YouTube data verification:", msg)
+		if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "YouTube Data Verification", msg); errLog != nil {
+			fmt.Printf("Failed to write log: %v\n", errLog)
+		}
 		return
 	}
 	
@@ -226,11 +242,18 @@ Courtyard by Marriott Bali Nusa Dua Resort
 	success, message := utils.SendEmail(email)
 
 	if success {
-		fmt.Println("Email sent successfully:", message)
+		if errLog := utils.WriteFormattedLog(conf.LogPath, "INFO", "email", fmt.Sprintf("Email sent successfully: %s", message)); errLog != nil {
+			fmt.Printf("Failed to write log: %v\n", errLog)
+		}
 	} else {
-		fmt.Println("Failed to send email:", message)
+		if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "email", fmt.Sprintf("Failed to send email: %s", message)); errLog != nil {
+			fmt.Printf("Failed to write log: %v\n", errLog)
+		}
 		return
 	}
 
-	fmt.Println("YouTube data has been removed successfully.")
+	if errLog := utils.WriteFormattedLog(conf.LogPath, "INFO", "Remove YouTube Data", "Function has been completed"); errLog != nil {
+		fmt.Printf("Failed to write log: %v\n", errLog)
+		return
+	}
 }

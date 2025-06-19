@@ -144,17 +144,21 @@ type adbUptime struct {
 }
 
 func GetUptimeADB() {
-	// func main() {
-	fmt.Println("Get uptime device ADB process initiated.")
-
 	conf, errLoadJson := config.LoadJSON[adbUptime]("config/get-uptime-ADB-devices.json")
 	if errLoadJson != nil {
 		fmt.Println("Failed to load config from json", errLoadJson)
 		return
 	}
 
+	if errLog := utils.WriteFormattedLog(conf.LogPath, "INFO", "Get Uptime ADB Devices", "Function has been started"); errLog != nil {
+		fmt.Printf("Failed to write log: %v\n", errLog)
+	}
+
 	db, err := sql.Open("sqlite", "file:./resource/app.db")
 	if err != nil {
+		if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "database", fmt.Sprintf("Error connecting to database: %v", err)); errLog != nil {
+			fmt.Printf("Failed to write log: %v\n", errLog)
+		}
 		panic(err)
 	}
 	defer db.Close()
@@ -177,6 +181,9 @@ func GetUptimeADB() {
 
 	rows, err := db.Query(query, args...)
 	if err != nil {
+		if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "database", fmt.Sprintf("Error query to database: %v", err)); errLog != nil {
+			fmt.Printf("Failed to write log: %v\n", errLog)
+		}
 		panic(err)
 	}
 	defer rows.Close()
@@ -204,6 +211,9 @@ func GetUptimeADB() {
 	}
 
 	if err = rows.Err(); err != nil {
+		if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "database", fmt.Sprintf("Error reading rows: %v", err)); errLog != nil {
+			fmt.Printf("Failed to write log: %v\n", errLog)
+		}
 		panic(err)
 	}
 
@@ -211,6 +221,9 @@ func GetUptimeADB() {
 
 	if !status {
 		fmt.Println("Error during Get Uptime verification:", msg)
+		if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "Get Uptime ADB Devices", fmt.Sprintf("Error during Get Uptime verification: %s", msg)); errLog != nil {
+			fmt.Printf("Failed to write log: %v\n", errLog)
+		}
 		return
 	}
 
@@ -238,10 +251,18 @@ Courtyard by Marriott Bali Nusa Dua Resort
 
 	if success {
 		fmt.Println("Email sent successfully:", message)
+		if errLog := utils.WriteFormattedLog(conf.LogPath, "INFO", "email", fmt.Sprintf("Email sent successfully: %s", message)); errLog != nil {
+			fmt.Printf("Failed to write log: %v\n", errLog)
+		}
 	} else {
 		fmt.Println("Failed to send email:", message)
+		if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "email", fmt.Sprintf("Failed to send email: %s", message)); errLog != nil {
+			fmt.Printf("Failed to write log: %v\n", errLog)
+		}
 		return
 	}
 
-	fmt.Println("Get uptime device ADB successfully.")
+	if errLog := utils.WriteFormattedLog(conf.LogPath, "INFO", "Get Uptime ADB Devices", "Function has been completed"); errLog != nil {
+		fmt.Printf("Failed to write log: %v\n", errLog)
+	}
 }

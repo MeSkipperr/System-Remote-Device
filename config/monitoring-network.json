@@ -5,5 +5,6 @@
         "network",
         "server"
     ],
-    "logPath":"output/monitoring-network/"
+    "logPath":"log/monitoring-network/",
+    "outputPath":"output/monitoring-network/"
 }

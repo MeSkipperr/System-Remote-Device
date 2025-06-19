@@ -13,6 +13,7 @@ type monitoringNetworkType struct {
 	Runtime  	int				`json:"runtime"`
 	DeviceType 	[]string		`json:"deviceType"`
 	LogPath		string			`json:"logPath"`
+	OutputPath		string			`json:"outputPath"`
 }
 
 func ClearMonitoringLog() {
@@ -23,7 +24,7 @@ func ClearMonitoringLog() {
 		fmt.Println("Failed to load config from json", err)
 		return 
 	}
-	logFolder := conf.LogPath;
+	logFolder := conf.OutputPath;
 
 	filepath.Walk(logFolder, func(path string, info os.FileInfo, err error) error {
 		if err != nil {

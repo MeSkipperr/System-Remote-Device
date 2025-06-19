@@ -1,5 +1,6 @@
 {
-    "logPath": "output/error_devices.xlsx",
+    "logPath": "output/error_devices.log",
+    "outputPath": "output/error_devices.xlsx",
     "deviceType": [
 
     ]

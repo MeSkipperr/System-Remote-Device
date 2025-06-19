@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-func getUptime(devices []models.DeviceType, logPath string) (bool, string) {
+func getUptime(devices []models.DeviceType, outputPath string) (bool, string) {
 	conf, err := config.LoadJSON[models.AdbConfigType]("config/adb.json")
 	if err != nil {
 		fmt.Println("Failed to load config from json", err)
@@ -50,7 +50,7 @@ func getUptime(devices []models.DeviceType, logPath string) (bool, string) {
 		return false, "Verification steps are not configured."
 	}
 	// Ensure the log path is set
-	if logPath == "" {
+	if outputPath == "" {
 		return false, "Log path is not configured."
 	}
 
@@ -128,7 +128,7 @@ func getUptime(devices []models.DeviceType, logPath string) (bool, string) {
 		content += line
 	}
 
-	errWriteTxt := utils.WriteToTXT(logPath, content, false)
+	errWriteTxt := utils.WriteToTXT(outputPath, content, false)
 	if errWriteTxt != nil {
 		return false, "Failed to write verification results to log file: " + errWriteTxt.Error()
 	}
@@ -139,6 +139,7 @@ func getUptime(devices []models.DeviceType, logPath string) (bool, string) {
 type adbUptime struct {
 	Schedule   string   `json:"schedule"`
 	LogPath    string   `json:"logPath"`
+	OutputPath    string   `json:"outputPath"`
 	DeviceType []string `json:"deviceType"`
 }
 
@@ -206,7 +207,7 @@ func GetUptimeADB() {
 		panic(err)
 	}
 
-	status, msg := getUptime(devices, conf.LogPath)
+	status, msg := getUptime(devices, conf.OutputPath)
 
 	if !status {
 		fmt.Println("Error during Get Uptime verification:", msg)
@@ -228,7 +229,7 @@ Best regards,
 Courtyard by Marriott Bali Nusa Dua Resort
 			`,
 			FileAttachment: []string{
-				conf.LogPath,
+				conf.OutputPath,
 			},
 		},
 	}

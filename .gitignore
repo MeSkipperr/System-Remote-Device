@@ -1,9 +1,11 @@
 .env
 /resource/app.db
 /log/*
-/log/monitoring-network/*
+/output/*
+/output/monitoring-network/*
 /tmp/*
 
+!/output/.gitkeep
+!/output/monitoring-network/.gitkeep
 !/log/.gitkeep
-!/log/monitoring-network/.gitkeep
-!/log/monitoring-network/
+!/output/monitoring-network/

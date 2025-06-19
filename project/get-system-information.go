@@ -27,6 +27,7 @@ type deviceCommandType struct {
 type configType struct{
 	Device 		[]deviceCommandType		`json:"deviceConfig"`
 	LogPath		string					`json:"logPath"`
+	OutputPath		string				`json:"outputPath"`
 }
 
 // ---------- CORE FUNCTION ----------
@@ -90,7 +91,7 @@ func GetSystemInformation() {
 	configData, errCommand := config.LoadJSON[configType]("config/command-information.json")
 
 	deviceCommand := configData.Device
-	logPath := configData.LogPath
+	outputPath := configData.OutputPath
 
 	if errCommand != nil{
 		fmt.Println("Failed to load config from json", errCommand)
@@ -204,12 +205,12 @@ func GetSystemInformation() {
 		}
 	}
 
-	errWriteTxt := utils.WriteToTXT(logPath, summaryOut.String(),false)
+	errWriteTxt := utils.WriteToTXT(outputPath, summaryOut.String(),false)
 	if errWriteTxt != nil {
 		fmt.Println("Error:", errWriteTxt)
 		return
 	} else {
-		fmt.Println("Success write data in file : ",logPath)
+		fmt.Println("Success write data in file : ",outputPath)
 	}
 
 	email := models.EmailStructure{
@@ -223,7 +224,7 @@ Best regards,
 Courtyard by Marriott Bali Nusa Dua Resort
 			`,
 			FileAttachment: []string{
-				logPath,
+				outputPath,
 			},
 		},
 	}

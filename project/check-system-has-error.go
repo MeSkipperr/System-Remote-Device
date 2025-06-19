@@ -16,6 +16,7 @@ import (
 
 type systemHasError	 struct {
 	LogPath  string `json:"logPath"`
+	OutputPath  string `json:"outputPath"`
 	DeviceType []string `json:"deviceType"`
 }
 
@@ -28,7 +29,7 @@ func CheckSystemHasError() {
 		fmt.Println("Failed to load config from json", errLoadJson)
 		return 
 		} 
-	outputPath := conf.LogPath;
+	outputPath := conf.OutputPath;
 
 	db, err := sql.Open("sqlite", "file:./resource/app.db")
 	if err != nil {

@@ -1,5 +1,6 @@
 {
-    "logPath": "output/get-uptime.txt",
+    "outputPath": "output/get-uptime.txt",
+    "logPath": "output/get-uptime.log",
     "deviceType": [
 
     ]

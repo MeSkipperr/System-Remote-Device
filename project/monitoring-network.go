@@ -17,6 +17,7 @@ type monitoringNetworkType struct {
 	Runtime  	int				`json:"runtime"`
 	DeviceType 	[]string		`json:"deviceType"`
 	LogPath		string			`json:"logPath"`
+	OutputPath		string		`json:"outputPath"`
 }
 
 func updateError(dev models.DeviceType, errorStatus bool, ) (bool, string) {
@@ -42,11 +43,11 @@ func updateError(dev models.DeviceType, errorStatus bool, ) (bool, string) {
 	return true, "Success: Error status updated for device"
 }
 
-func statusChecking(dev models.DeviceType, lostPercent float64,logPath string) {
+func statusChecking(dev models.DeviceType, lostPercent float64,outputPath string) {
 	logText := fmt.Sprintf("Time: %s | Name: %s | IP: %s | Device: %s | Lost Percent: %.2f%%\n",
 		utils.GetCurrentTimeFormatted(), dev.Name, dev.IPAddress, dev.Device, lostPercent)
 
-	errWriteTxt := utils.WriteToTXT(logPath+dev.Name+".txt", logText, true)
+	errWriteTxt := utils.WriteToTXT(outputPath+dev.Name+".txt", logText, true)
 
 	if errWriteTxt != nil {
 		fmt.Println("Failed to write file .txt", errWriteTxt)
@@ -177,7 +178,7 @@ func MonitoringNetwork(stopChan chan struct{}) {
 				dev := &devices[i]
 				replies, err := utils.PingDevice(dev.IPAddress, times)
 				if err != nil {
-					statusChecking(*dev, 100,conf.LogPath)
+					statusChecking(*dev, 100,conf.OutputPath)
 					continue
 				}
 
@@ -201,7 +202,7 @@ func MonitoringNetwork(stopChan chan struct{}) {
 				}
 				lostPercent := (float64(lostCount) / float64(times)) * 100
 
-				statusChecking(*dev, lostPercent,conf.LogPath)
+				statusChecking(*dev, lostPercent,conf.OutputPath)
 			}
 		case <-stopChan:
 			fmt.Println("Monitoring network stopped at",utils.GetCurrentTimeFormatted())

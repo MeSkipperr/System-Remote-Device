@@ -14,6 +14,21 @@ var (
 
 // === Monitoring Network Handlers ===
 
+func AutoStartMonitoringNetwork() {
+    muMonitor.Lock()
+    defer muMonitor.Unlock()
+
+    if monitorRunning {
+        return
+    }
+
+    monitorStopCh = make(chan struct{})
+    monitorRunning = true
+    go project.MonitoringNetwork(monitorStopCh)
+
+    fmt.Println("✅ Monitoring Network started automatically on startup")
+}
+
 // Starts the network monitoring process
 func StartMonitoringHandler(w http.ResponseWriter, r *http.Request) {
 	muMonitor.Lock()

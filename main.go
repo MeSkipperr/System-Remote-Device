@@ -2,6 +2,7 @@ package main
 
 import (
 	"SystemRemoteDevice/config"
+	"SystemRemoteDevice/handlers"
 	"SystemRemoteDevice/project"
 	"SystemRemoteDevice/routes"
 	"SystemRemoteDevice/utils/schedule"
@@ -45,6 +46,7 @@ func main() {
 	go func() {
 		project.GetSystemInformation()
 		project.CheckSystemHasError()	
+		handlers.AutoStartMonitoringNetwork()
 	}()
 		
 	r := routes.RegisterRoutes()

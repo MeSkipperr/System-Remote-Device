@@ -2,6 +2,7 @@
 /resource/app.db
 /log/*
 /output/*
+/config/*
 /output/monitoring-network/*
 /tmp/*
 

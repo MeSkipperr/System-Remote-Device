@@ -1,19 +1,13 @@
 {
     "deviceConfig":[
         {
-            "device": "Server HP",
-            "username": "tkj",
-            "password": "tkj",
-            "command": ["ip a"]
-        }, 
-        {
-            "device": "Server HP",
-            "username": "tkj",
-            "password": "tkj",
-            "command": ["whoami"],
-            "specificIP": ["10.10.10.4"]
-        } 
-        
+            "device": "",
+            "username": "",
+            "password": "",
+            "command": [
+
+            ]
+        }
     ],
     "outputPath":"output/device-information.txt",
     "logPath":"log/device-information.log"

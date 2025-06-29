@@ -2,8 +2,6 @@
     "times":10,
     "runtime":5,
     "deviceType":[
-        "network",
-        "server"
     ],
     "logPath":"log/monitoring-network.log",
     "outputPath":"output/monitoring-network/"

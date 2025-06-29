@@ -124,7 +124,7 @@ func GetSystemInformation() {
 
 	query := fmt.Sprintf(`
 		SELECT * FROM devices
-		WHERE devices IN (%s)
+		WHERE device IN (%s)
 	`, strings.Join(placeholders, ", "))
 
 	// Eksekusi query dengan argumen slice

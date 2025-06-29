@@ -51,6 +51,6 @@ func main() {
 		
 	r := routes.RegisterRoutes()
 
-	fmt.Println("Server running on http://localhost:8080")
-	http.ListenAndServe(":8080", r) 
+	fmt.Println("Server running on http://localhost:8000")
+	http.ListenAndServe(":8000", r) 
 }

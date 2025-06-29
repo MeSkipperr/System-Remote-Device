@@ -53,8 +53,9 @@ func CheckSystemHasError() {
 	query := fmt.Sprintf(`
 		SELECT *
 		FROM devices
-		WHERE type IN (%s)
+		WHERE error = 1 AND type IN (%s)
 	`, strings.Join(placeholders, ","))
+
 
 	rows, err := db.Query(query, args...)
 	if err != nil {

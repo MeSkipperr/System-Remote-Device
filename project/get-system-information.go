@@ -50,11 +50,10 @@ func RunSSHCommands(device models.DeviceType,deviceCommand deviceCommandType) (s
 
 		// Write IP address as header
 		outputBuilder.WriteString("=======\n")
-		outputBuilder.WriteString("IP Address: " + device.Name + "\n")
+		outputBuilder.WriteString("Device Name: " + device.Name + "\n")
 		outputBuilder.WriteString("IP Address: " + device.IPAddress + "\n")
-		outputBuilder.WriteString("IP Address: " + device.Device + "\n")
-		outputBuilder.WriteString("IP Address: " + device.Type + "\n")
-		outputBuilder.WriteString("IP Address: " + device.Description + "\n")
+		outputBuilder.WriteString("Device Model: " + device.Device + "\n")
+		outputBuilder.WriteString("Device Information: " + device.Description + "\n")
 		outputBuilder.WriteString("=======\n")
 
 		// Execute all commands
@@ -203,11 +202,10 @@ func GetSystemInformation() {
 			if err != nil {
 				fmt.Println(err)
 				summaryOut.WriteString("=======\n")
-				summaryOut.WriteString("IP Address: " + device.Name + "\n")
+				summaryOut.WriteString("Device Name: " + device.Name + "\n")
 				summaryOut.WriteString("IP Address: " + device.IPAddress + "\n")
-				summaryOut.WriteString("IP Address: " + device.Device + "\n")
-				summaryOut.WriteString("IP Address: " + device.Type + "\n")
-				summaryOut.WriteString("IP Address: " + device.Description + "\n")
+				summaryOut.WriteString("Device Model: " + device.Device + "\n")
+				summaryOut.WriteString("Device Information: " + device.Description + "\n")
 				summaryOut.WriteString("=======\n")
 				summaryOut.WriteString(err.Error() + "\n")
 				summaryOut.WriteString("=======\n")

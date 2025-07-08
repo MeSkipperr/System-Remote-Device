@@ -43,7 +43,7 @@ func getUptime(devices []models.DeviceType, outputPath string, logPath string) (
 
 			// Skip if already success on previous step
 			if i >= 1 {
-				if dev, exists := devicesMap[ip]; exists && dev.StatusMessage == conf.StatusMessage["SUCCESS"] {
+				if dev, exists := devicesMap[ip]; exists && strings.Contains(dev.StatusMessage,  conf.StatusMessage["SUCCESS"]) {
 					logToFile(logPath, "INFO", "ADB", fmt.Sprintf("Skipping %s (%s): Already verified", devices[j].Name, ip))
 					continue
 				}

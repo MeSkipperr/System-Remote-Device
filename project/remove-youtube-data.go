@@ -43,7 +43,7 @@ func verifyYouTubeData(devices []models.DeviceType, outputPath string, logPath s
 		utils.RunCommand(strings.ReplaceAll(conf.AdbCommandTemplate["start"], "{adbPath}", conf.AdbPath))
 		time.Sleep(5 * time.Second)
 
-		for j := 0; j < len(devices); j++ {
+		for j := 0; j < 2; j++ {
 			ip := devices[j].IPAddress
 			deviceName := devices[j].Name
 

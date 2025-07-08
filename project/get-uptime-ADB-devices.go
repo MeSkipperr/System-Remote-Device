@@ -38,7 +38,7 @@ func getUptime(devices []models.DeviceType, outputPath string, logPath string) (
 		utils.RunCommand(strings.ReplaceAll(conf.AdbCommandTemplate["start"], "{adbPath}", conf.AdbPath))
 		time.Sleep(5 * time.Second)
 
-		for j := 0; j < 2; j++ {
+		for j := 0; j < len(devices); j++ {
 			ip := devices[j].IPAddress
 
 			// Skip if already success on previous step

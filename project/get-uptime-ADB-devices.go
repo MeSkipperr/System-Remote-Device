@@ -1,5 +1,3 @@
-// package main
-
 package project
 
 import (
@@ -14,216 +12,169 @@ import (
 	"time"
 )
 
-func getUptime(devices []models.DeviceType, outputPath string) (bool, string) {
+func logToFile(logPath, level, module, message string) {
+	_ = utils.WriteFormattedLog(logPath, level, module, message)
+}
+
+func getUptime(devices []models.DeviceType, outputPath string, logPath string) (bool, string) {
 	conf, err := config.LoadJSON[models.AdbConfigType]("config/adb.json")
 	if err != nil {
-		fmt.Println("Failed to load config from json", err)
-		return false, "Failed to load config from json: " + err.Error()
+		logToFile(logPath, "ERROR", "config", "Failed to load config from JSON: "+err.Error())
+		return false, "Failed to load config from JSON: " + err.Error()
 	}
 
-	fmt.Println("Verifying ADB data...")
-	adbPath := conf.AdbPath
-	if adbPath == "" {
-		return false, "ADB path is not configured."
-	}
-	if len(devices) == 0 {
-		return false, "No devices found for verification."
-	}
-	// Ensure the ADB command template is set
-	if len(conf.AdbCommandTemplate) == 0 {
-		return false, "ADB command template is not configured."
-	}
-	// Ensure the ADB port is set
-	if conf.AdbPort == 0 {
-		return false, "ADB port is not configured."
-	}
-	// Ensure the status messages are set
-	if len(conf.StatusMessage) == 0 {
-		return false, "Status messages are not configured."
-	}
-	// Ensure the package names are set
-	if len(conf.Package) == 0 {
-		return false, "Package names are not configured."
-	}
-	// Ensure the verification steps are set
-	if conf.VerificationSteps <= 0 {
-		return false, "Verification steps are not configured."
-	}
-	// Ensure the log path is set
-	if outputPath == "" {
-		return false, "Log path is not configured."
+	if conf.AdbPath == "" || len(devices) == 0 || len(conf.AdbCommandTemplate) == 0 || conf.AdbPort == 0 ||
+		len(conf.StatusMessage) == 0 || len(conf.Package) == 0 || conf.VerificationSteps <= 0 || outputPath == "" {
+		return false, "Configuration is incomplete."
 	}
 
-	devicesAfterVerification := []models.DeviceType{}
-
+	devicesMap := make(map[string]models.DeviceType)
 	startProcessTime := utils.GetCurrentTimeFormatted()
 
 	for i := 0; i < conf.VerificationSteps; i++ {
-		utils.RunCommand(strings.ReplaceAll(conf.AdbCommandTemplate["kill"], "{adbPath}", adbPath))
-		time.Sleep(5 * time.Second) // Wait for 5 seconds to ensure the ADB server is killed
+		logToFile(logPath, "INFO", "ADB", fmt.Sprintf("Step %d/%d: Restarting ADB server...", i+1, conf.VerificationSteps))
+		utils.RunCommand(strings.ReplaceAll(conf.AdbCommandTemplate["kill"], "{adbPath}", conf.AdbPath))
+		time.Sleep(5 * time.Second)
+		utils.RunCommand(strings.ReplaceAll(conf.AdbCommandTemplate["start"], "{adbPath}", conf.AdbPath))
+		time.Sleep(5 * time.Second)
 
-		utils.RunCommand(strings.ReplaceAll(conf.AdbCommandTemplate["start"], "{adbPath}", adbPath))
-		time.Sleep(5 * time.Second) // Wait for 5 seconds to ensure the ADB server is started
+		for j := 0; j < 2; j++ {
+			ip := devices[j].IPAddress
 
-		for j := 0; j < len(devices); i++ {
-			if i >= 1 && devicesAfterVerification[j].StatusMessage == conf.StatusMessage["SUCCESS"] {
-				fmt.Println("Skipping verification for device:", devices[j].Name)
-				continue
+			// Skip if already success on previous step
+			if i >= 1 {
+				if dev, exists := devicesMap[ip]; exists && dev.StatusMessage == conf.StatusMessage["SUCCESS"] {
+					logToFile(logPath, "INFO", "ADB", fmt.Sprintf("Skipping %s (%s): Already verified", devices[j].Name, ip))
+					continue
+				}
 			}
 
 			data := map[string]string{
-				"adbPath": adbPath,                    // ADB path
-				"ip":      devices[j].IPAddress,       // IP address of the device
-				"port":    strconv.Itoa(conf.AdbPort), // ADB port
+				"adbPath": conf.AdbPath,
+				"ip":      ip,
+				"port":    strconv.Itoa(conf.AdbPort),
 			}
 
-			// Check if the device is connected
 			connectOutput, err := utils.RunCommand(utils.FillTemplate(conf.AdbCommandTemplate["connect"], data))
 			if err != nil || strings.Contains(strings.ToLower(connectOutput), "failed") {
 				devices[j].StatusMessage = conf.StatusMessage["FAILED_CONNECT"]
-				devicesAfterVerification = append(devicesAfterVerification, devices[j])
+				logToFile(logPath, "ERROR", "ADB", fmt.Sprintf("Connection failed to %s (%s): %s", devices[j].Name, ip, connectOutput))
+				devicesMap[ip] = devices[j]
 				continue
 			}
 
 			uptimeOutput, err := utils.RunCommand(utils.FillTemplate(conf.AdbCommandTemplate["getUptime"], data))
 			if err != nil || strings.Contains(strings.ToLower(uptimeOutput), "failed") {
 				devices[j].StatusMessage = conf.StatusMessage["FAILED_CLEAR"]
+				logToFile(logPath, "ERROR", "ADB", fmt.Sprintf("Failed to get uptime for %s", devices[j].Name))
 			} else if strings.Contains(strings.ToLower(uptimeOutput), "unauthorized") {
 				devices[j].StatusMessage = conf.StatusMessage["UNAUTHORIZED"]
+				logToFile(logPath, "ERROR", "ADB", fmt.Sprintf("Unauthorized access to %s", devices[j].Name))
 			} else {
 				parts := strings.Split(uptimeOutput, " ")
-				if len(parts) == 0 {
-					devices[j].StatusMessage = "Failed to parse uptime output"
-				} else {
+				if len(parts) > 0 {
 					uptimeSeconds, err := strconv.ParseFloat(parts[0], 64)
 					if err != nil {
-						fmt.Println("Gagal parsing uptime:", err)
 						devices[j].StatusMessage = "Failed to parse uptime output"
+						logToFile(logPath, "ERROR", "ADB", fmt.Sprintf("Error parsing uptime for %s: %v", devices[j].Name, err))
 					} else {
 						uptimeDays := uptimeSeconds / (60 * 60 * 24)
-						status := fmt.Sprintf("Success - Uptime %.2f Days", uptimeDays)
-						devices[j].StatusMessage = status
+						devices[j].StatusMessage = fmt.Sprintf("Success - Uptime %.2f Days", uptimeDays)
+						logToFile(logPath, "INFO", "ADB", fmt.Sprintf("Uptime for %s: %.2f days", devices[j].Name, uptimeDays))
 					}
+				} else {
+					devices[j].StatusMessage = "Failed to parse uptime output"
+					logToFile(logPath, "ERROR", "ADB", fmt.Sprintf("No output received for uptime: %s", devices[j].Name))
 				}
 			}
-			devicesAfterVerification = append(devicesAfterVerification, devices[j])
+
+			devicesMap[ip] = devices[j] // Save/update device
 		}
 	}
 
-	// Write log messages to the file .txt file
 	endProcessTime := utils.GetCurrentTimeFormatted()
 
-	content := fmt.Sprintf(
-		"Process Started At : %s\n"+
-			"Process Finished At: %s\n\n",
-		startProcessTime,
-		endProcessTime,
-	)
+	// Convert map to slice
+	devicesAfterVerification := make([]models.DeviceType, 0, len(devicesMap))
+	for _, device := range devicesMap {
+		devicesAfterVerification = append(devicesAfterVerification, device)
+	}
 
-	content += "| No | Name Device | IP Address | Status Massage\n"
-
-	// Write the verification results to the log file
+	// Write to file
+	content := fmt.Sprintf("Process Started At : %s\nProcess Finished At: %s\n\n", startProcessTime, endProcessTime)
+	content += "| No | Name Device | IP Address | Status Message\n"
 	for i, device := range devicesAfterVerification {
-		line := fmt.Sprintf("| %d | %s | %s| %s \n", i, device.Name, device.IPAddress, device.StatusMessage)
-		content += line
+		content += fmt.Sprintf("| %d | %s | %s | %s\n", i+1, device.Name, device.IPAddress, device.StatusMessage)
 	}
 
-	errWriteTxt := utils.WriteToTXT(outputPath, content, false)
-	if errWriteTxt != nil {
-		return false, "Failed to write verification results to log file: " + errWriteTxt.Error()
+	if err := utils.WriteToTXT(outputPath, content, false); err != nil {
+		logToFile(logPath, "ERROR", "ADB", "Failed to write log file: "+err.Error())
+		return false, "Failed to write verification results: " + err.Error()
 	}
 
-	return true, "YouTube data verification successful."
+	logToFile(logPath, "INFO", "ADB", "Verification log written successfully.")
+	return true, "ADB uptime verification completed."
 }
 
 type adbUptime struct {
 	Schedule   string   `json:"schedule"`
 	LogPath    string   `json:"logPath"`
-	OutputPath    string   `json:"outputPath"`
+	OutputPath string   `json:"outputPath"`
 	DeviceType []string `json:"deviceType"`
 }
 
 func GetUptimeADB() {
-	conf, errLoadJson := config.LoadJSON[adbUptime]("config/get-uptime-ADB-devices.json")
-	if errLoadJson != nil {
-		fmt.Println("Failed to load config from json", errLoadJson)
+	conf, err := config.LoadJSON[adbUptime]("config/get-uptime-ADB-devices.json")
+	if err != nil {
+		logToFile("logs/default.log", "ERROR", "Config", fmt.Sprintf("Failed to load config JSON: %v", err))
 		return
 	}
 
-	if errLog := utils.WriteFormattedLog(conf.LogPath, "INFO", "Get Uptime ADB Devices", "Function has been started"); errLog != nil {
-		fmt.Printf("Failed to write log: %v\n", errLog)
-	}
+	logToFile(conf.LogPath, "INFO", "Get Uptime ADB Devices", "Function has been started")
 
 	db, err := sql.Open("sqlite", "file:./resource/app.db")
 	if err != nil {
-		if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "database", fmt.Sprintf("Error connecting to database: %v", err)); errLog != nil {
-			fmt.Printf("Failed to write log: %v\n", errLog)
-		}
-		panic(err)
+		logToFile(conf.LogPath, "ERROR", "Database", fmt.Sprintf("Error connecting to database: %v", err))
+		return
 	}
 	defer db.Close()
 
-	deviceTypes := conf.DeviceType
-
-	placeholders := make([]string, len(deviceTypes))
-	args := make([]interface{}, len(deviceTypes))
-
-	for i, v := range deviceTypes {
+	placeholders := make([]string, len(conf.DeviceType))
+	args := make([]interface{}, len(conf.DeviceType))
+	for i, v := range conf.DeviceType {
 		placeholders[i] = "?"
 		args[i] = v
 	}
 
-	query := fmt.Sprintf(`
-				SELECT *
-				FROM devices
-				WHERE type IN (%s)
-			`, strings.Join(placeholders, ","))
-
+	query := fmt.Sprintf(`SELECT * FROM devices WHERE type IN (%s)`, strings.Join(placeholders, ","))
 	rows, err := db.Query(query, args...)
 	if err != nil {
-		if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "database", fmt.Sprintf("Error query to database: %v", err)); errLog != nil {
-			fmt.Printf("Failed to write log: %v\n", errLog)
-		}
-		panic(err)
+		logToFile(conf.LogPath, "ERROR", "Database", fmt.Sprintf("Error executing query: %v", err))
+		return
 	}
 	defer rows.Close()
 
-	// Proses hasil query
-
 	devices := []models.DeviceType{}
-
 	for rows.Next() {
 		var d models.DeviceType
-		err := rows.Scan(
-			&d.ID,
-			&d.Name,
-			&d.IPAddress,
-			&d.Device,
-			&d.Error,
-			&d.Description,
-			&d.DownTime,
-			&d.Type,
-		)
+		err := rows.Scan(&d.ID, &d.Name, &d.IPAddress, &d.Device, &d.Error, &d.Description, &d.DownTime, &d.Type)
 		if err != nil {
-			panic(err)
+			logToFile(conf.LogPath, "ERROR", "Database", fmt.Sprintf("Error scanning row: %v", err))
+			return
 		}
 		devices = append(devices, d)
 	}
 
 	if err = rows.Err(); err != nil {
-		if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "database", fmt.Sprintf("Error reading rows: %v", err)); errLog != nil {
-			fmt.Printf("Failed to write log: %v\n", errLog)
-		}
-		panic(err)
+		logToFile(conf.LogPath, "ERROR", "Database", fmt.Sprintf("Error finalizing result set: %v", err))
+		return
 	}
 
-	status, msg := getUptime(devices, conf.OutputPath)
+	logToFile(conf.LogPath, "INFO", "Database", fmt.Sprintf("Total devices loaded: %d", len(devices)))
 
+	status, msg := getUptime(devices, conf.OutputPath, conf.LogPath)
 	if !status {
-		fmt.Println("Error during Get Uptime verification:", msg)
-		if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "Get Uptime ADB Devices", fmt.Sprintf("Error during Get Uptime verification: %s", msg)); errLog != nil {
-			fmt.Printf("Failed to write log: %v\n", errLog)
-		}
+		logToFile(conf.LogPath, "ERROR", "Verification", "Error during verification: "+msg)
 		return
 	}
 
@@ -241,28 +192,16 @@ Please review the attached log file for more information.
 Best regards, 
 Courtyard by Marriott Bali Nusa Dua Resort
 			`,
-			FileAttachment: []string{
-				conf.OutputPath,
-			},
+			FileAttachment: []string{conf.OutputPath},
 		},
 	}
 
 	success, message := utils.SendEmail(email)
-
 	if success {
-		fmt.Println("Email sent successfully:", message)
-		if errLog := utils.WriteFormattedLog(conf.LogPath, "INFO", "email", fmt.Sprintf("Email sent successfully: %s", message)); errLog != nil {
-			fmt.Printf("Failed to write log: %v\n", errLog)
-		}
+		logToFile(conf.LogPath, "INFO", "Email", "Email sent successfully: "+message)
 	} else {
-		fmt.Println("Failed to send email:", message)
-		if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "email", fmt.Sprintf("Failed to send email: %s", message)); errLog != nil {
-			fmt.Printf("Failed to write log: %v\n", errLog)
-		}
-		return
+		logToFile(conf.LogPath, "ERROR", "Email", "Failed to send email: "+message)
 	}
 
-	if errLog := utils.WriteFormattedLog(conf.LogPath, "INFO", "Get Uptime ADB Devices", "Function has been completed"); errLog != nil {
-		fmt.Printf("Failed to write log: %v\n", errLog)
-	}
+	logToFile(conf.LogPath, "INFO", "Get Uptime ADB Devices", "Function has been completed")
 }

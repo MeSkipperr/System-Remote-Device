@@ -14,116 +14,113 @@ import (
 	"time"
 )
 
-func verifyYouTubeData(devices []models.DeviceType, outputPath string) (bool, string) {
+func verifyYouTubeData(devices []models.DeviceType, outputPath string, logPath string) (bool, string) {
 	conf, err := config.LoadJSON[models.AdbConfigType]("config/adb.json")
-	if err != nil {	
-		fmt.Println("Failed to load config from json", err)
-		return false, "Failed to load config from json: " + err.Error()
-	} 
-
-	fmt.Println("Verifying YouTube data...")
-	adbPath := conf.AdbPath
-	if adbPath == "" {
-		return false, "ADB path is not configured."	
-	}
-	if len(devices) == 0 {
-		return false, "No devices found for verification."
-	}
-	// Ensure the ADB command template is set
-	if len(conf.AdbCommandTemplate) == 0 {
-		return false, "ADB command template is not configured."
-	}
-	// Ensure the ADB port is set
-	if conf.AdbPort == 0 {
-		return false, "ADB port is not configured."
-	}
-	// Ensure the status messages are set
-	if len(conf.StatusMessage) == 0 {
-		return false, "Status messages are not configured."
-	}
-	// Ensure the package names are set
-	if len(conf.Package) == 0 {
-		return false, "Package names are not configured."
-	}
-	// Ensure the verification steps are set
-	if conf.VerificationSteps <= 0 {
-		return false, "Verification steps are not configured."
-	}
-	// Ensure the log path is set
-	if outputPath == "" {	
-		return false, "Log path is not configured."
+	if err != nil {
+		logToFile(logPath, "ERROR", "Config", "Failed to load config: "+err.Error())
+		return false, "Failed to load config: " + err.Error()
 	}
 
+	if conf.AdbPath == "" || len(conf.AdbCommandTemplate) == 0 || conf.AdbPort == 0 || len(conf.StatusMessage) == 0 ||
+		len(conf.Package) == 0 || conf.VerificationSteps <= 0 || outputPath == "" || len(devices) == 0 {
+		logToFile(logPath, "ERROR", "Config", "Incomplete configuration or no devices found.")
+		return false, "Incomplete configuration or no devices found"
+	}
+
+	startProcessTime := utils.GetCurrentTimeFormatted()
+
+	// Menyimpan status akhir setiap perangkat berdasarkan IP (untuk skip di iterasi selanjutnya)
+	statusPerDevice := make(map[string]string)
+
+	// Slice untuk hasil akhir, berurutan sesuai waktu proses
 	devicesAfterVerification := []models.DeviceType{}
 
-	startProcessTime := utils.GetCurrentTimeFormatted();
-
 	for i := 0; i < conf.VerificationSteps; i++ {
-		utils.RunCommand(strings.ReplaceAll(conf.AdbCommandTemplate["kill"], "{adbPath}", adbPath))
-		time.Sleep(5 * time.Second)// Wait for 5 seconds to ensure the ADB server is killed
-	
-		utils.RunCommand(strings.ReplaceAll(conf.AdbCommandTemplate["start"], "{adbPath}", adbPath))
-		time.Sleep(5 * time.Second)// Wait for 5 seconds to ensure the ADB server is started
-		
-		for j := 0; j < len(devices); i++ {
-			if(i >= 1 && devicesAfterVerification[j].StatusMessage == conf.StatusMessage["SUCCESS"]){
-				fmt.Println("Skipping verification for device:", devices[j].Name)
+		logToFile(logPath, "INFO", "ADB", fmt.Sprintf("Step %d/%d: Restarting ADB server...", i+1, conf.VerificationSteps))
+
+		utils.RunCommand(strings.ReplaceAll(conf.AdbCommandTemplate["kill"], "{adbPath}", conf.AdbPath))
+		time.Sleep(5 * time.Second)
+		utils.RunCommand(strings.ReplaceAll(conf.AdbCommandTemplate["start"], "{adbPath}", conf.AdbPath))
+		time.Sleep(5 * time.Second)
+
+		for j := 0; j < len(devices); j++ {
+			ip := devices[j].IPAddress
+			deviceName := devices[j].Name
+
+			// Lewati jika sudah sukses pada langkah sebelumnya
+			if prevStatus, ok := statusPerDevice[ip]; ok && prevStatus == conf.StatusMessage["SUCCESS"] {
+				logToFile(logPath, "INFO", "SKIP", fmt.Sprintf("Skipping %s (%s) - already verified", deviceName, ip))
 				continue
 			}
 
 			data := map[string]string{
-				"adbPath": adbPath, // ADB path
-				"ip":      devices[j].IPAddress, // IP address of the device
-				"port":    strconv.Itoa(conf.AdbPort),   // ADB port
-				"package": conf.Package["youtube"], // YouTube package name
+				"adbPath": conf.AdbPath,
+				"ip":      ip,
+				"port":    strconv.Itoa(conf.AdbPort),
+				"package": conf.Package["youtube"],
 			}
 
-			// Check if the device is connected
 			connectOutput, err := utils.RunCommand(utils.FillTemplate(conf.AdbCommandTemplate["connect"], data))
-			if err != nil ||  strings.Contains(strings.ToLower(connectOutput), "failed"){
+			if err != nil || strings.Contains(strings.ToLower(connectOutput), "failed") {
 				devices[j].StatusMessage = conf.StatusMessage["FAILED_CONNECT"]
+				logToFile(logPath, "ERROR", "CONNECT", fmt.Sprintf("Failed to connect to %s (%s): %s", deviceName, ip, connectOutput))
+			} else {
+				logToFile(logPath, "INFO", "CLEAR", fmt.Sprintf("Clearing YouTube data on %s (%s)...", deviceName, ip))
+				clearOutput, err := utils.RunCommand(utils.FillTemplate(conf.AdbCommandTemplate["clearData"], data))
+				if err != nil || strings.Contains(strings.ToLower(clearOutput), "failed") {
+					devices[j].StatusMessage = conf.StatusMessage["FAILED_CLEAR"]
+					logToFile(logPath, "ERROR", "CLEAR", fmt.Sprintf("Failed to clear data on %s (%s): %s", deviceName, ip, clearOutput))
+				} else if strings.Contains(strings.ToLower(clearOutput), "unauthorized") {
+					devices[j].StatusMessage = conf.StatusMessage["UNAUTHORIZED"]
+					logToFile(logPath, "ERROR", "CLEAR", fmt.Sprintf("Unauthorized access on %s (%s)", deviceName, ip))
+				} else {
+					devices[j].StatusMessage = conf.StatusMessage["SUCCESS"]
+					logToFile(logPath, "INFO", "CLEAR", fmt.Sprintf("Successfully cleared data on %s (%s)", deviceName, ip))
+				}
+			}
+
+			// Simpan status terbaru ke map
+			statusPerDevice[ip] = devices[j].StatusMessage
+
+			// Cek apakah perangkat ini sudah pernah ditambahkan sebelumnya
+			found := false
+			for k := range devicesAfterVerification {
+				if devicesAfterVerification[k].IPAddress == ip {
+					devicesAfterVerification[k] = devices[j] // update
+					found = true
+					break
+				}
+			}
+			if !found {
 				devicesAfterVerification = append(devicesAfterVerification, devices[j])
-				continue
 			}
-
-			clearOutput, err := utils.RunCommand(utils.FillTemplate(conf.AdbCommandTemplate["clearData"], data))
-			if err != nil || strings.Contains(strings.ToLower(clearOutput), "failed") {
-				devices[j].StatusMessage = conf.StatusMessage["FAILED_CLEAR"]
-			} else if strings.Contains(strings.ToLower(clearOutput), "unauthorized") {
-				devices[j].StatusMessage = conf.StatusMessage["UNAUTHORIZED"]
-			}else {
-				devices[j].StatusMessage = conf.StatusMessage["SUCCESS"]
-			}
-
-			devicesAfterVerification = append(devicesAfterVerification, devices[j])
 		}
 	}
+	endProcessTime := utils.GetCurrentTimeFormatted()
 
-	// Write log messages to the file .txt file
-	endProcessTime := utils.GetCurrentTimeFormatted();
-
+	// Format output ke file .txt
 	content := fmt.Sprintf(
 		"Process Started At : %s\n"+
-		"Process Finished At: %s\n\n",
-		startProcessTime,
-		endProcessTime,
+			"Process Finished At: %s\n\n"+
+			"| No | Name Device | IP Address | Status Message\n",
+		startProcessTime, endProcessTime,
 	)
 
-	content += "| No | Name Device | IP Address | Status Massage\n"
-
-	// Write the verification results to the log file
-	for i , device := range devicesAfterVerification {
-		line := fmt.Sprintf("| %d | %s | %s| %s \n", i, device.Name, device.IPAddress , device.StatusMessage)
+	for i, device := range devicesAfterVerification {
+		line := fmt.Sprintf("| %d | %s | %s | %s\n", i+1, device.Name, device.IPAddress, device.StatusMessage)
 		content += line
 	}
 
-	errWriteTxt := utils.WriteToTXT(outputPath, content, false)
-	if errWriteTxt != nil {
-		return false, "Failed to write verification results to log file: " + errWriteTxt.Error()
+	if err := utils.WriteToTXT(outputPath, content, false); err != nil {
+		logToFile(logPath, "ERROR", "Output", "Failed to write .txt: "+err.Error())
+		return false, "Failed to write verification results to log file: " + err.Error()
 	}
 
+	logToFile(logPath, "INFO", "Verification", "YouTube data verification completed.")
 	return true, "YouTube data verification successful."
 }
+
+
 
 type removalYoutube	 struct {
 	Schedule string `json:"schedule"`
@@ -210,7 +207,7 @@ func RemoveYouTubeData() {
 				panic(err)
 			}
 
-	status, msg := verifyYouTubeData(devices, conf.OutputPath)
+	status, msg := verifyYouTubeData(devices, conf.OutputPath, conf.LogPath)
 
 	if !status {
 		if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "YouTube Data Verification", msg); errLog != nil {

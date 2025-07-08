@@ -44,6 +44,7 @@ func main() {
 	//auto running function at first time
 
 	go func() {
+		project.GetUptimeADB();
 		project.GetSystemInformation()
 		project.CheckSystemHasError()	
 		handlers.AutoStartMonitoringNetwork()

@@ -1,15 +1,16 @@
 package project
 
 import (
-	"SystemRemoteDevice/config"
+	"fmt"
+	"sync"
+	"time"
+		"SystemRemoteDevice/config"
 	"SystemRemoteDevice/models"
 	"SystemRemoteDevice/utils"
 	"SystemRemoteDevice/template/email"
 	"database/sql"
-	"fmt"
 	_ "modernc.org/sqlite"
 	"strings"
-	"time"
 )
 
 type monitoringNetworkType struct {
@@ -19,6 +20,7 @@ type monitoringNetworkType struct {
 	LogPath		string			`json:"logPath"`
 	OutputPath		string		`json:"outputPath"`
 }
+
 
 func updateError(dev models.DeviceType, errorStatus bool, ) (bool, string) {
 	currentTime := time.Now()
@@ -125,99 +127,24 @@ func statusChecking(dev models.DeviceType, lostPercent float64,outputPath string
 	}
 }
 
-func MonitoringNetwork(stopChan chan struct{}) {
 
-	conf, err := config.LoadJSON[monitoringNetworkType]("config/monitoring-network.json")
 
-	if err != nil {	
-		fmt.Println("Failed to load config from json", err)
-		return 
-	}
-
-	if errLog := utils.WriteFormattedLog(conf.LogPath, "INFO", "Monitoring Network",fmt.Sprintf("Monitoring network started at %s",utils.GetCurrentTimeFormatted())); errLog != nil {
-		fmt.Printf("Failed to write log: %v\n", errLog)
-	}
-
-	times := conf.Times
+func startDeviceLoop(dev models.DeviceType, conf  monitoringNetworkType, stopChan chan struct{}, wg *sync.WaitGroup) {
+	defer wg.Done()
 
 	ticker := time.NewTicker(time.Duration(conf.Runtime) * time.Second)
 	defer ticker.Stop()
 
 	for {
 		select {
-		case <-ticker.C:
+		case <-stopChan:
+			return
+		default:
+				times := conf.Times
 
-			db, err := sql.Open("sqlite", "file:./resource/app.db")
-			if err != nil {
-				if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "database", fmt.Sprintf("Error connecting to database: %v", err)); errLog != nil {
-					fmt.Printf("Failed to write log: %v\n", errLog)
-				}
-				panic(err)
-			}
-			defer db.Close()
-
-			deviceTypes := conf.DeviceType // []string{"network", "server", "iot"}
-
-			placeholders := make([]string, len(deviceTypes))
-			args := make([]interface{}, len(deviceTypes))
-
-			for i, v := range deviceTypes {
-				placeholders[i] = "?"
-				args[i] = v
-			}
-
-			query := fmt.Sprintf(`
-				SELECT *
-				FROM devices
-				WHERE type IN (%s)
-			`, strings.Join(placeholders, ","))
-
-			rows, err := db.Query(query, args...)
-			if err != nil {
-				if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "database", fmt.Sprintf("Error query to database: %v", err)); errLog != nil {
-					fmt.Printf("Failed to write log: %v\n", errLog)	
-				}
-
-				panic(err)
-			}
-			defer rows.Close()
-
-			// Proses hasil query
-
-			devices := []models.DeviceType{}
-
-			for rows.Next() {
-				var d models.DeviceType
-				err := rows.Scan(
-					&d.ID,
-					&d.Name,
-					&d.IPAddress,
-					&d.Device,
-					&d.Error,
-					&d.Description,
-					&d.DownTime,
-					&d.Type,
-				)
-				if err != nil {
-					if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "database", fmt.Sprintf("Query type mismatch: %v", err)); errLog != nil {
-						fmt.Printf("Failed to write log: %v\n", errLog)
-					}
-					panic(err)
-				}
-				devices = append(devices, d)
-			}
-
-			if err = rows.Err(); err != nil {
-				if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "database", fmt.Sprintf("Error reading rows: %v", err)); errLog != nil {
-					fmt.Printf("Failed to write log: %v\n", errLog)
-				}
-				panic(err)
-			}
-			for i := range devices {
-				dev := &devices[i]
 				replies, err := utils.PingDevice(dev.IPAddress, times)
 				if err != nil {
-					statusChecking(*dev, 100,conf.OutputPath)
+					statusChecking(dev, 100,conf.OutputPath)
 					if errLog := utils.WriteFormattedLog(
 						conf.LogPath,
 						"INFO",
@@ -250,7 +177,7 @@ func MonitoringNetwork(stopChan chan struct{}) {
 				}
 				lostPercent := (float64(lostCount) / float64(times)) * 100
 
-				statusChecking(*dev, lostPercent,conf.OutputPath)
+				statusChecking(dev, lostPercent,conf.OutputPath)
 				if errLog := utils.WriteFormattedLog(
 					conf.LogPath,
 					"INFO",
@@ -259,12 +186,105 @@ func MonitoringNetwork(stopChan chan struct{}) {
 				); errLog != nil {
 					fmt.Printf("Failed to write log: %v\n", errLog)
 				}
+			select {
+			case <-ticker.C:
+				// Lanjut ke iterasi berikutnya
+			case <-stopChan:
+				return
 			}
-		case <-stopChan:
-			if errLog := utils.WriteFormattedLog(conf.LogPath, "INFO", "Monitoring Network", fmt.Sprintf("Monitoring network stopped at %s", utils.GetCurrentTimeFormatted())); errLog != nil {
-				fmt.Printf("Failed to write log: %v\n", errLog)
-			}
-			return
 		}
 	}
+}
+
+
+func MonitoringNetwork(stopChan chan struct{}) {
+	var wg sync.WaitGroup
+
+	conf, err := config.LoadJSON[monitoringNetworkType]("config/monitoring-network.json")
+
+	if err != nil {	
+		fmt.Println("Failed to load config from json", err)
+		return 
+	}
+
+	if errLog := utils.WriteFormattedLog(conf.LogPath, "INFO", "Monitoring Network",fmt.Sprintf("Monitoring network started at %s",utils.GetCurrentTimeFormatted())); errLog != nil {
+		fmt.Printf("Failed to write log: %v\n", errLog)
+	}
+
+
+	db, err := sql.Open("sqlite", "file:./resource/app.db")
+	if err != nil {
+		if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "database", fmt.Sprintf("Error connecting to database: %v", err)); errLog != nil {
+			fmt.Printf("Failed to write log: %v\n", errLog)
+		}
+		panic(err)
+	}
+	defer db.Close()
+
+	deviceTypes := conf.DeviceType // []string{"network", "server", "iot"}
+
+	placeholders := make([]string, len(deviceTypes))
+	args := make([]interface{}, len(deviceTypes))
+
+	for i, v := range deviceTypes {
+		placeholders[i] = "?"
+		args[i] = v
+	}
+
+	query := fmt.Sprintf(`
+		SELECT *
+		FROM devices
+		WHERE type IN (%s)
+	`, strings.Join(placeholders, ","))
+
+	rows, err := db.Query(query, args...)
+	if err != nil {
+		if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "database", fmt.Sprintf("Error query to database: %v", err)); errLog != nil {
+			fmt.Printf("Failed to write log: %v\n", errLog)	
+		}
+
+		panic(err)
+	}
+	defer rows.Close()
+
+	// Proses hasil query
+
+	devices := []models.DeviceType{}
+
+	for rows.Next() {
+		var d models.DeviceType
+		err := rows.Scan(
+			&d.ID,
+			&d.Name,
+			&d.IPAddress,
+			&d.Device,
+			&d.Error,
+			&d.Description,
+			&d.DownTime,
+			&d.Type,
+		)
+		if err != nil {
+			if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "database", fmt.Sprintf("Query type mismatch: %v", err)); errLog != nil {
+				fmt.Printf("Failed to write log: %v\n", errLog)
+			}
+			panic(err)
+		}
+		devices = append(devices, d)
+	}
+
+	if err = rows.Err(); err != nil {
+		if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "database", fmt.Sprintf("Error reading rows: %v", err)); errLog != nil {
+			fmt.Printf("Failed to write log: %v\n", errLog)
+		}
+		panic(err)
+	}
+
+
+	for _, device := range devices {
+		wg.Add(1)
+		go startDeviceLoop(device,conf, stopChan, &wg)
+	}
+
+	wg.Wait()
+	fmt.Println("Semua device selesai dimonitor (dihentikan).")
 }

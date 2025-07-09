@@ -94,7 +94,7 @@ func statusChecking(dev models.DeviceType, lostPercent float64,outputPath string
 			}
 		}
 
-	} else if lostPercent < 100 && dev.Error {
+	} else if lostPercent == 0 && dev.Error {
 		// Kirim email recovery bisa di sini
 		setError, errMsg := updateError(dev, false)
 

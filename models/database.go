@@ -13,4 +13,5 @@ type DeviceType struct {
     DownTime      time.Time `json:"down_time" validate:"required"`
     Type          string    `json:"type" validate:"required"`
     StatusMessage string    `json:"status_message"`
+    ErrorCount    int       `json:"count_error"`
 }

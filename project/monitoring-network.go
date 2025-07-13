@@ -1,28 +1,26 @@
 package project
 
 import (
-	"fmt"
-	"sync"
-	"time"
-		"SystemRemoteDevice/config"
+	"SystemRemoteDevice/config"
 	"SystemRemoteDevice/models"
-	"SystemRemoteDevice/utils"
 	"SystemRemoteDevice/template/email"
+	"SystemRemoteDevice/utils"
 	"database/sql"
+	"fmt"
 	_ "modernc.org/sqlite"
 	"strings"
+	"time"
 )
 
 type monitoringNetworkType struct {
-	Times 		int				`json:"times"`
-	Runtime  	int				`json:"runtime"`
-	DeviceType 	[]string		`json:"deviceType"`
-	LogPath		string			`json:"logPath"`
-	OutputPath		string		`json:"outputPath"`
+	Times      int      `json:"times"`
+	Runtime    int      `json:"runtime"`
+	DeviceType []string `json:"deviceType"`
+	LogPath    string   `json:"logPath"`
+	OutputPath string   `json:"outputPath"`
 }
 
-
-func updateError(dev models.DeviceType, errorStatus bool, ) (bool, string) {
+func updateError(dev models.DeviceType, errorStatus bool) (bool, string) {
 	currentTime := time.Now()
 
 	db, err := sql.Open("sqlite", "file:./resource/app.db")
@@ -31,7 +29,7 @@ func updateError(dev models.DeviceType, errorStatus bool, ) (bool, string) {
 	}
 	defer db.Close()
 
-	stmt, err := db.Prepare(`UPDATE devices SET error = ?, down_time = ? WHERE id = ?`)
+	stmt, err := db.Prepare(`UPDATE devices SET error = ?, down_time = ? WHERE id = ? `)
 	if err != nil {
 		return false, fmt.Sprintf("Prepare statement error: %v", err)
 	}
@@ -44,40 +42,71 @@ func updateError(dev models.DeviceType, errorStatus bool, ) (bool, string) {
 
 	return true, "Success: Error status updated for device"
 }
+func updateCountError(dev models.DeviceType, countError int) (bool, string) {
+	db, err := sql.Open("sqlite", "file:./resource/app.db")
+	if err != nil {
+		return false, fmt.Sprintf("Database open error: %v", err)
+	}
+	defer db.Close()
 
-func statusChecking(dev models.DeviceType, lostPercent float64,outputPath string) {
-	conf, err := config.LoadJSON[monitoringNetworkType]("config/monitoring-network.json")
+	stmt, err := db.Prepare(`UPDATE devices SET  count_error = ? WHERE id = ? `)
+	if err != nil {
+		return false, fmt.Sprintf("Prepare statement error: %v", err)
+	}
+	defer stmt.Close()
 
-	if err != nil {	
-		fmt.Println("Failed to load config from json", err)
-		return 
+	_, err = stmt.Exec(countError, dev.ID)
+	if err != nil {
+		return false, fmt.Sprintf("Exec update error: %v", err)
 	}
 
-	logText := fmt.Sprintf("Time: %s | Name: %s | IP: %s | Device: %s | Lost Percent: %.2f%%\n",
-		utils.GetCurrentTimeFormatted(), dev.Name, dev.IPAddress, dev.Device, lostPercent)
+	return true, "Success: Error status updated for device"
+}
 
-	errWriteTxt := utils.WriteToTXT(outputPath+dev.Name+".txt", logText, true)
+func PingDevice(dev models.DeviceType, conf monitoringNetworkType) {
+	times := conf.Times
 
-	if errWriteTxt != nil {
-		if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "Write Log", fmt.Sprintf("Failed to write file .txt: %v", errWriteTxt)); errLog != nil {
-			fmt.Printf("Failed to write log: %v\n", errLog)	
+	replies, err := utils.PingDevice(dev.IPAddress, 1)
+
+	if err != nil {
+		dev.ErrorCount = utils.Clamp(dev.ErrorCount+1, 0, times)
+	} else {
+		lines := strings.Split(replies, "\n")
+		linesResArray := lines[2]
+
+		if strings.Contains(linesResArray, "Destination Host Unreachable") ||
+			strings.Contains(linesResArray, "Request timed out") ||
+			strings.Contains(linesResArray, "100% packet loss") ||
+			strings.Contains(linesResArray, "Name or service not known") ||
+			strings.Contains(linesResArray, "could not find host") {
+			dev.ErrorCount = utils.Clamp(dev.ErrorCount+1, 0, times)
+		} else {
+			dev.ErrorCount = utils.Clamp(dev.ErrorCount-1, 0, times)
 		}
-		return
-	} 
+	}
 
-	if lostPercent == 100 && !dev.Error {
+	countBol, countMessage := updateCountError(dev, dev.ErrorCount)
+
+	if countBol {
+		if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "database", fmt.Sprintf("Error query to database: %v", countMessage)); errLog != nil {
+			fmt.Printf("Failed to write log: %v\n", errLog)
+		}
+	}
+
+	if dev.ErrorCount == times && !dev.Error {
+		//send error
 		setError, errMsg := updateError(dev, true)
 
 		if !setError {
 			if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "Update Error Status", fmt.Sprintf("Failed to update error status on device: %v", errMsg)); errLog != nil {
 				fmt.Printf("Failed to write log: %v\n", errLog)
 			}
-		} 
+		}
 
 		email := models.EmailStructure{
 			EmailData: models.EmailData{
-				Subject:       "Device Down Notification",
-				BodyTemplate:  email.ErrorDeviceEmail(dev),
+				Subject:        "Device Down Notification",
+				BodyTemplate:   email.ErrorDeviceEmail(dev),
 				FileAttachment: []string{},
 			},
 		}
@@ -94,20 +123,20 @@ func statusChecking(dev models.DeviceType, lostPercent float64,outputPath string
 			}
 		}
 
-	} else if lostPercent == 0 && dev.Error {
-		// Kirim email recovery bisa di sini
+	} else if dev.ErrorCount == 0 && dev.Error {
+		//send recov
 		setError, errMsg := updateError(dev, false)
 
 		if !setError {
 			if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "Update Error Status", fmt.Sprintf("Failed to update error status on device: %v", errMsg)); errLog != nil {
 				fmt.Printf("Failed to write log: %v\n", errLog)
 			}
-		} 
+		}
 
 		email := models.EmailStructure{
 			EmailData: models.EmailData{
-				Subject:       "Device Recovery Notification",
-				BodyTemplate:  email.RecoveryDeviceEmail(dev),
+				Subject:        "Device Recovery Notification",
+				BodyTemplate:   email.RecoveryDeviceEmail(dev),
 				FileAttachment: []string{},
 			},
 		}
@@ -123,168 +152,102 @@ func statusChecking(dev models.DeviceType, lostPercent float64,outputPath string
 				fmt.Printf("Failed to write log: %v\n", errLog)
 			}
 		}
-
 	}
+
 }
 
+func MonitoringNetwork(stopChan chan struct{}) {
+	conf, err := config.LoadJSON[monitoringNetworkType]("config/monitoring-network.json")
 
+	if err != nil {
+		fmt.Println("Failed to load config from json", err)
+		return
+	}
 
-func startDeviceLoop(dev models.DeviceType, conf  monitoringNetworkType, stopChan chan struct{}, wg *sync.WaitGroup) {
-	defer wg.Done()
-
-	ticker := time.NewTicker(time.Duration(conf.Runtime) * time.Second)
+	ticker := time.NewTicker(time.Duration(conf.Times) * time.Second)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-stopChan:
+			fmt.Println("Monitoring dihentikan oleh sinyal.")
 			return
-		default:
-				times := conf.Times
-
-				replies, err := utils.PingDevice(dev.IPAddress, times)
-				if err != nil {
-					statusChecking(dev, 100,conf.OutputPath)
-					if errLog := utils.WriteFormattedLog(
-						conf.LogPath,
-						"INFO",
-						"Ping Device",
-						fmt.Sprintf("Name: %s | IP: %s | Device: %s | Lost Percent: %.2f%%", dev.Name, dev.IPAddress, dev.Device, 100.0),
-					); errLog != nil {
-						fmt.Printf("Failed to write log: %v\n", errLog)
-					}
-
-					continue
-				}
-
-				lines := strings.Split(replies, "\n")
-				var linesResArray []string
-				if len(lines) >= 2+times {
-					linesResArray = lines[2 : 2+times]
-				} else {
-					linesResArray = lines
-				}
-
-				lostCount := 0
-				for _, r := range linesResArray {
-					if strings.Contains(r, "Destination Host Unreachable") ||
-						strings.Contains(r, "Request timed out") ||
-						strings.Contains(r, "100% packet loss") ||
-						strings.Contains(r, "Name or service not known") ||
-						strings.Contains(r, "could not find host") {
-						lostCount++
-					}
-				}
-				lostPercent := (float64(lostCount) / float64(times)) * 100
-
-				statusChecking(dev, lostPercent,conf.OutputPath)
-				if errLog := utils.WriteFormattedLog(
-					conf.LogPath,
-					"INFO",
-					"Ping Device",
-					fmt.Sprintf("Name: %s | IP: %s | Device: %s | Lost Percent: %.2f%%", dev.Name, dev.IPAddress, dev.Device, lostPercent),
-				); errLog != nil {
-					fmt.Printf("Failed to write log: %v\n", errLog)
-				}
-			select {
-			case <-ticker.C:
-				// Lanjut ke iterasi berikutnya
-			case <-stopChan:
-				return
-			}
-		}
-	}
-}
-
-
-func MonitoringNetwork(stopChan chan struct{}) {
-	var wg sync.WaitGroup
-
-	conf, err := config.LoadJSON[monitoringNetworkType]("config/monitoring-network.json")
-
-	if err != nil {	
-		fmt.Println("Failed to load config from json", err)
-		return 
-	}
-
-	if errLog := utils.WriteFormattedLog(conf.LogPath, "INFO", "Monitoring Network",fmt.Sprintf("Monitoring network started at %s",utils.GetCurrentTimeFormatted())); errLog != nil {
-		fmt.Printf("Failed to write log: %v\n", errLog)
-	}
-
-
-	db, err := sql.Open("sqlite", "file:./resource/app.db")
-	if err != nil {
-		if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "database", fmt.Sprintf("Error connecting to database: %v", err)); errLog != nil {
-			fmt.Printf("Failed to write log: %v\n", errLog)
-		}
-		panic(err)
-	}
-	defer db.Close()
-
-	deviceTypes := conf.DeviceType // []string{"network", "server", "iot"}
-
-	placeholders := make([]string, len(deviceTypes))
-	args := make([]interface{}, len(deviceTypes))
-
-	for i, v := range deviceTypes {
-		placeholders[i] = "?"
-		args[i] = v
-	}
-
-	query := fmt.Sprintf(`
-		SELECT *
-		FROM devices
-		WHERE type IN (%s)
-	`, strings.Join(placeholders, ","))
-
-	rows, err := db.Query(query, args...)
-	if err != nil {
-		if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "database", fmt.Sprintf("Error query to database: %v", err)); errLog != nil {
-			fmt.Printf("Failed to write log: %v\n", errLog)	
-		}
-
-		panic(err)
-	}
-	defer rows.Close()
-
-	// Proses hasil query
-
-	devices := []models.DeviceType{}
-
-	for rows.Next() {
-		var d models.DeviceType
-		err := rows.Scan(
-			&d.ID,
-			&d.Name,
-			&d.IPAddress,
-			&d.Device,
-			&d.Error,
-			&d.Description,
-			&d.DownTime,
-			&d.Type,
-		)
-		if err != nil {
-			if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "database", fmt.Sprintf("Query type mismatch: %v", err)); errLog != nil {
+		case <-ticker.C:
+			if errLog := utils.WriteFormattedLog(conf.LogPath, "INFO", "Monitoring Network", fmt.Sprintf("Monitoring network started at %s", utils.GetCurrentTimeFormatted())); errLog != nil {
 				fmt.Printf("Failed to write log: %v\n", errLog)
 			}
-			panic(err)
+
+			db, err := sql.Open("sqlite", "file:./resource/app.db")
+			if err != nil {
+				if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "database", fmt.Sprintf("Error connecting to database: %v", err)); errLog != nil {
+					fmt.Printf("Failed to write log: %v\n", errLog)
+				}
+				panic(err)
+			}
+			defer db.Close()
+
+			deviceTypes := conf.DeviceType // []string{"network", "server", "iot"}
+
+			placeholders := make([]string, len(deviceTypes))
+			args := make([]interface{}, len(deviceTypes))
+
+			for i, v := range deviceTypes {
+				placeholders[i] = "?"
+				args[i] = v
+			}
+
+			query := fmt.Sprintf(`
+				SELECT *
+				FROM devices
+				WHERE type IN (%s)
+			`, strings.Join(placeholders, ","))
+
+			rows, err := db.Query(query, args...)
+			if err != nil {
+				if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "database", fmt.Sprintf("Error query to database: %v", err)); errLog != nil {
+					fmt.Printf("Failed to write log: %v\n", errLog)
+				}
+
+				panic(err)
+			}
+			defer rows.Close()
+
+			// Proses hasil query
+
+			devices := []models.DeviceType{}
+
+			for rows.Next() {
+				var d models.DeviceType
+				err := rows.Scan(
+					&d.ID,
+					&d.Name,
+					&d.IPAddress,
+					&d.Device,
+					&d.Error,
+					&d.Description,
+					&d.DownTime,
+					&d.Type,
+				)
+				if err != nil {
+					if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "database", fmt.Sprintf("Query type mismatch: %v", err)); errLog != nil {
+						fmt.Printf("Failed to write log: %v\n", errLog)
+					}
+					panic(err)
+				}
+				devices = append(devices, d)
+			}
+
+			if err = rows.Err(); err != nil {
+				if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "database", fmt.Sprintf("Error reading rows: %v", err)); errLog != nil {
+					fmt.Printf("Failed to write log: %v\n", errLog)
+				}
+				panic(err)
+			}
+
+			for _, device := range devices {
+				go PingDevice(device, conf)
+			}
 		}
-		devices = append(devices, d)
 	}
 
-	if err = rows.Err(); err != nil {
-		if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "database", fmt.Sprintf("Error reading rows: %v", err)); errLog != nil {
-			fmt.Printf("Failed to write log: %v\n", errLog)
-		}
-		panic(err)
-	}
-
-
-	for _, device := range devices {
-		wg.Add(1)
-		go startDeviceLoop(device,conf, stopChan, &wg)
-	}
-
-	wg.Wait()
-	fmt.Println("Semua device selesai dimonitor (dihentikan).")
 }

@@ -93,8 +93,31 @@ func PingDevice(dev models.DeviceType, conf monitoringNetworkType) {
 		}
 	}
 
+	lines := strings.Split(replies, "\n")
+	linesResArray := lines[2]
+
+	if errLog := utils.WriteFormattedLog(
+		conf.LogPath,
+		"INFO",
+		"Ping Device",
+		fmt.Sprintf("Name: %s | IP: %s | Device: %s | Result %s", dev.Name, dev.IPAddress, dev.Device,linesResArray),
+	); errLog != nil {
+		fmt.Printf("Failed to write log: %v\n", errLog)
+	}
+
 	if dev.ErrorCount == times && !dev.Error {
 		//send error
+		logText := fmt.Sprintf("Time: %s | Name: %s | IP: %s | Device: %s | Result %s",
+		utils.GetCurrentTimeFormatted(), dev.Name, dev.IPAddress, dev.Device, linesResArray)
+
+		errWriteTxt := utils.WriteToTXT(conf.OutputPath+dev.Name+".txt", logText, true)
+
+		if errWriteTxt != nil {
+			if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "Write Log", fmt.Sprintf("Failed to write file .txt: %v", errWriteTxt)); errLog != nil {
+				fmt.Printf("Failed to write log: %v\n", errLog)	
+			}
+			return
+		} 
 		setError, errMsg := updateError(dev, true)
 
 		if !setError {
@@ -124,7 +147,18 @@ func PingDevice(dev models.DeviceType, conf monitoringNetworkType) {
 		}
 
 	} else if dev.ErrorCount == 0 && dev.Error {
-		//send recov
+		logText := fmt.Sprintf("Time: %s | Name: %s | IP: %s | Device: %s | Result %s",
+		utils.GetCurrentTimeFormatted(), dev.Name, dev.IPAddress, dev.Device, linesResArray)
+
+		errWriteTxt := utils.WriteToTXT(conf.OutputPath+dev.Name+".txt", logText, true)
+
+		if errWriteTxt != nil {
+			if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "Write Log", fmt.Sprintf("Failed to write file .txt: %v", errWriteTxt)); errLog != nil {
+				fmt.Printf("Failed to write log: %v\n", errLog)	
+			}
+			return
+		} 
+		
 		setError, errMsg := updateError(dev, false)
 
 		if !setError {

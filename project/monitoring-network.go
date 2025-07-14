@@ -280,7 +280,7 @@ func MonitoringNetwork(stopChan chan struct{}) {
 			}
 
 			for _, device := range devices {
-				go PingDevice(device, conf)
+				PingDevice(device, conf)
 			}
 		}
 	}

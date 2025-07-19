@@ -156,7 +156,7 @@ func PingDevice(dev models.DeviceType, conf monitoringNetworkType) {
 				}
 			}
 
-		} else if dev.ErrorCount == 0 && dev.Error {
+		} else if dev.ErrorCount == 0 && dev.Error && valueARP.Status {
 			dev.MACAddress = valueARP.MACAddress
 
 			if errLog := utils.WriteFormattedLog(

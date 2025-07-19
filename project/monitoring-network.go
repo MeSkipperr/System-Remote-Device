@@ -86,7 +86,6 @@ func PingDevice(dev models.DeviceType, conf monitoringNetworkType) {
 	}
 
 	countBol, countMessage := updateCountError(dev, dev.ErrorCount)
-	fmt.Println("Count Error:", countBol, "Message:", countMessage)
 
 	if !countBol {
 		if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "database", fmt.Sprintf("Error query to database: %v", countMessage)); errLog != nil {
@@ -94,10 +93,10 @@ func PingDevice(dev models.DeviceType, conf monitoringNetworkType) {
 		}
 	}
 
-	lines := strings.Split(replies, "\n")
-	linesResArray := lines[2]
-
-	if dev.ErrorCount == 0 && dev.ErrorCount == times {
+	
+	if dev.ErrorCount == 0 || dev.ErrorCount == times {
+		lines := strings.Split(replies, "\n")
+		linesResArray := lines[2]
 		if errLog := utils.WriteFormattedLog(
 			conf.LogPath,
 			"INFO",

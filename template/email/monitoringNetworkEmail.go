@@ -24,12 +24,13 @@ We would like to inform you that an error has occurred in the network system. Be
 - Host Name: %s
 - IP Address: %s
 - Device: %s
+- Mac Address: %s
 %s
 Kindly review the information provided and take necessary actions to resolve the issue at your earliest convenience.
 
 Best regards,
 Courtyard by Marriott Bali Nusa Dua Resort
-`, currentTime, dev.Name, dev.IPAddress, dev.Device, desc)
+`, currentTime, dev.Name, dev.IPAddress, dev.Device,dev.MACAddress, desc)
 }
 
 func RecoveryDeviceEmail(dev models.DeviceType) string{
@@ -49,11 +50,13 @@ This is to notify you of a network system recovery update. Below are the recover
 - Host Name: %s
 - IP Address: %s
 - Device: %s
+- Mac Address: %s
+
 %s
 Inspect the details and confirm the system is back to normal.
 
 Best regards,
 Courtyard by Marriott Bali Nusa Dua Resort
-`, currentTime, dev.Name, dev.IPAddress, dev.Device, desc)
+`, currentTime, dev.Name, dev.IPAddress, dev.Device,dev.MACAddress, desc)
 }
 

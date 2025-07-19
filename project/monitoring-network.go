@@ -20,6 +20,8 @@ type monitoringNetworkType struct {
 	OutputPath string   `json:"outputPath"`
 }
 
+
+
 func updateError(dev models.DeviceType, errorStatus bool) (bool, string) {
 	currentTime := time.Now()
 
@@ -85,16 +87,22 @@ func PingDevice(dev models.DeviceType, conf monitoringNetworkType) {
 		}
 	}
 
-	countBol, countMessage := updateCountError(dev, dev.ErrorCount)
-
-	if countBol {
-		if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "database", fmt.Sprintf("Error query to database: %v", countMessage)); errLog != nil {
-			fmt.Printf("Failed to write log: %v\n", errLog)
+	if dev.ErrorCount < 0 && dev.ErrorCount >= times {
+		countBol, countMessage := updateCountError(dev, dev.ErrorCount)
+	
+		if countBol {
+			if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "database", fmt.Sprintf("Error query to database: %v", countMessage)); errLog != nil {
+				fmt.Printf("Failed to write log: %v\n", errLog)
+			}
 		}
 	}
 
 	lines := strings.Split(replies, "\n")
 	linesResArray := lines[2]
+
+	if dev.ErrorCount > 0 && dev.ErrorCount < times {
+		return
+	}
 
 	if errLog := utils.WriteFormattedLog(
 		conf.LogPath,
@@ -105,8 +113,16 @@ func PingDevice(dev models.DeviceType, conf monitoringNetworkType) {
 		fmt.Printf("Failed to write log: %v\n", errLog)
 	}
 
-	if dev.ErrorCount == times && !dev.Error {
+	valueARP, err := utils.GetARPEntry(dev.IPAddress)
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+	
+	if dev.ErrorCount == times && !dev.Error && valueARP.Status {
 		//send error
+		dev.MACAddress = valueARP.MACAddress
+
 		logText := fmt.Sprintf("Time: %s | Name: %s | IP: %s | Device: %s | Result %s",
 		utils.GetCurrentTimeFormatted(), dev.Name, dev.IPAddress, dev.Device, linesResArray)
 
@@ -147,6 +163,8 @@ func PingDevice(dev models.DeviceType, conf monitoringNetworkType) {
 		}
 
 	} else if dev.ErrorCount == 0 && dev.Error {
+		dev.MACAddress = valueARP.MACAddress
+
 		logText := fmt.Sprintf("Time: %s | Name: %s | IP: %s | Device: %s | Result %s",
 		utils.GetCurrentTimeFormatted(), dev.Name, dev.IPAddress, dev.Device, linesResArray)
 

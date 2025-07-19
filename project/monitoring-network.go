@@ -20,8 +20,6 @@ type monitoringNetworkType struct {
 	OutputPath string   `json:"outputPath"`
 }
 
-
-
 func updateError(dev models.DeviceType, errorStatus bool) (bool, string) {
 	currentTime := time.Now()
 
@@ -87,13 +85,12 @@ func PingDevice(dev models.DeviceType, conf monitoringNetworkType) {
 		}
 	}
 
-	if dev.ErrorCount < 0 && dev.ErrorCount >= times {
-		countBol, countMessage := updateCountError(dev, dev.ErrorCount)
-	
-		if countBol {
-			if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "database", fmt.Sprintf("Error query to database: %v", countMessage)); errLog != nil {
-				fmt.Printf("Failed to write log: %v\n", errLog)
-			}
+	countBol, countMessage := updateCountError(dev, dev.ErrorCount)
+	fmt.Println("Count Error:", countBol, "Message:", countMessage)
+
+	if !countBol {
+		if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "database", fmt.Sprintf("Error query to database: %v", countMessage)); errLog != nil {
+			fmt.Printf("Failed to write log: %v\n", errLog)
 		}
 	}
 
@@ -105,40 +102,40 @@ func PingDevice(dev models.DeviceType, conf monitoringNetworkType) {
 			conf.LogPath,
 			"INFO",
 			"Ping Device",
-			fmt.Sprintf("Name: %s | IP: %s | Device: %s | Result %s", dev.Name, dev.IPAddress, dev.Device,linesResArray),
+			fmt.Sprintf("Name: %s | IP: %s | Device: %s | Result %s", dev.Name, dev.IPAddress, dev.Device, linesResArray),
 		); errLog != nil {
 			fmt.Printf("Failed to write log: %v\n", errLog)
 		}
-	
+
 		valueARP, err := utils.GetARPEntry(dev.IPAddress)
 		if err != nil {
 			fmt.Println("Error:", err)
 			return
 		}
-		
+
 		if dev.ErrorCount == times && !dev.Error && valueARP.Status {
 			//send error
 			dev.MACAddress = valueARP.MACAddress
-	
+
 			logText := fmt.Sprintf("Time: %s | Name: %s | IP: %s | Device: %s | Result %s",
-			utils.GetCurrentTimeFormatted(), dev.Name, dev.IPAddress, dev.Device, linesResArray)
-	
+				utils.GetCurrentTimeFormatted(), dev.Name, dev.IPAddress, dev.Device, linesResArray)
+
 			errWriteTxt := utils.WriteToTXT(conf.OutputPath+dev.Name+".txt", logText, true)
-	
+
 			if errWriteTxt != nil {
 				if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "Write Log", fmt.Sprintf("Failed to write file .txt: %v", errWriteTxt)); errLog != nil {
-					fmt.Printf("Failed to write log: %v\n", errLog)	
+					fmt.Printf("Failed to write log: %v\n", errLog)
 				}
 				return
-			} 
+			}
 			setError, errMsg := updateError(dev, true)
-	
+
 			if !setError {
 				if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "Update Error Status", fmt.Sprintf("Failed to update error status on device: %v", errMsg)); errLog != nil {
 					fmt.Printf("Failed to write log: %v\n", errLog)
 				}
 			}
-	
+
 			email := models.EmailStructure{
 				EmailData: models.EmailData{
 					Subject:        "Device Down Notification",
@@ -146,9 +143,9 @@ func PingDevice(dev models.DeviceType, conf monitoringNetworkType) {
 					FileAttachment: []string{},
 				},
 			}
-	
+
 			success, message := utils.SendEmail(email)
-	
+
 			if success {
 				if errLog := utils.WriteFormattedLog(conf.LogPath, "INFO", "Email", fmt.Sprintf("Email sent successfully: %s", message)); errLog != nil {
 					fmt.Printf("Failed to write log: %v\n", errLog)
@@ -158,30 +155,30 @@ func PingDevice(dev models.DeviceType, conf monitoringNetworkType) {
 					fmt.Printf("Failed to write log: %v\n", errLog)
 				}
 			}
-	
+
 		} else if dev.ErrorCount == 0 && dev.Error {
 			dev.MACAddress = valueARP.MACAddress
-	
+
 			logText := fmt.Sprintf("Time: %s | Name: %s | IP: %s | Device: %s | Result %s",
-			utils.GetCurrentTimeFormatted(), dev.Name, dev.IPAddress, dev.Device, linesResArray)
-	
+				utils.GetCurrentTimeFormatted(), dev.Name, dev.IPAddress, dev.Device, linesResArray)
+
 			errWriteTxt := utils.WriteToTXT(conf.OutputPath+dev.Name+".txt", logText, true)
-	
+
 			if errWriteTxt != nil {
 				if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "Write Log", fmt.Sprintf("Failed to write file .txt: %v", errWriteTxt)); errLog != nil {
-					fmt.Printf("Failed to write log: %v\n", errLog)	
+					fmt.Printf("Failed to write log: %v\n", errLog)
 				}
 				return
-			} 
-			
+			}
+
 			setError, errMsg := updateError(dev, false)
-	
+
 			if !setError {
 				if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "Update Error Status", fmt.Sprintf("Failed to update error status on device: %v", errMsg)); errLog != nil {
 					fmt.Printf("Failed to write log: %v\n", errLog)
 				}
 			}
-	
+
 			email := models.EmailStructure{
 				EmailData: models.EmailData{
 					Subject:        "Device Recovery Notification",
@@ -189,9 +186,9 @@ func PingDevice(dev models.DeviceType, conf monitoringNetworkType) {
 					FileAttachment: []string{},
 				},
 			}
-	
+
 			success, message := utils.SendEmail(email)
-	
+
 			if success {
 				if errLog := utils.WriteFormattedLog(conf.LogPath, "INFO", "Email", fmt.Sprintf("Email sent successfully: %s", message)); errLog != nil {
 					fmt.Printf("Failed to write log: %v\n", errLog)
@@ -203,7 +200,6 @@ func PingDevice(dev models.DeviceType, conf monitoringNetworkType) {
 			}
 		}
 	}
-
 
 }
 

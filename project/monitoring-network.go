@@ -7,9 +7,10 @@ import (
 	"SystemRemoteDevice/utils"
 	"database/sql"
 	"fmt"
-	_ "modernc.org/sqlite"
 	"strings"
 	"time"
+
+	_ "modernc.org/sqlite"
 )
 
 type monitoringNetworkType struct {
@@ -97,14 +98,6 @@ func PingDevice(dev models.DeviceType, conf monitoringNetworkType) {
 	if dev.ErrorCount == 0 || dev.ErrorCount == times {
 		lines := strings.Split(replies, "\n")
 		linesResArray := lines[2]
-		if errLog := utils.WriteFormattedLog(
-			conf.LogPath,
-			"INFO",
-			"Ping Device",
-			fmt.Sprintf("Name: %s | IP: %s | Device: %s | Result %s", dev.Name, dev.IPAddress, dev.Device, linesResArray),
-		); errLog != nil {
-			fmt.Printf("Failed to write log: %v\n", errLog)
-		}
 
 		valueARP, err := utils.GetARPEntry(dev.IPAddress)
 		if err != nil {
@@ -115,6 +108,16 @@ func PingDevice(dev models.DeviceType, conf monitoringNetworkType) {
 		if dev.ErrorCount == times && !dev.Error && valueARP.Status {
 			//send error
 			dev.MACAddress = valueARP.MACAddress
+
+			if errLog := utils.WriteFormattedLog(
+				conf.LogPath,
+				"INFO",
+				"Ping Device",
+				fmt.Sprintf("Name: %s | IP: %s | Device: %s | Result %s", dev.Name, dev.IPAddress, dev.Device, linesResArray),
+			); errLog != nil {
+				fmt.Printf("Failed to write log: %v\n", errLog)
+			}
+
 
 			logText := fmt.Sprintf("Time: %s | Name: %s | IP: %s | Device: %s | Result %s",
 				utils.GetCurrentTimeFormatted(), dev.Name, dev.IPAddress, dev.Device, linesResArray)
@@ -158,6 +161,16 @@ func PingDevice(dev models.DeviceType, conf monitoringNetworkType) {
 		} else if dev.ErrorCount == 0 && dev.Error {
 			dev.MACAddress = valueARP.MACAddress
 
+			if errLog := utils.WriteFormattedLog(
+				conf.LogPath,
+				"INFO",
+				"Ping Device",
+				fmt.Sprintf("Name: %s | IP: %s | Device: %s | Result %s", dev.Name, dev.IPAddress, dev.Device, linesResArray),
+			); errLog != nil {
+				fmt.Printf("Failed to write log: %v\n", errLog)
+			}
+
+
 			logText := fmt.Sprintf("Time: %s | Name: %s | IP: %s | Device: %s | Result %s",
 				utils.GetCurrentTimeFormatted(), dev.Name, dev.IPAddress, dev.Device, linesResArray)
 
@@ -194,6 +207,23 @@ func PingDevice(dev models.DeviceType, conf monitoringNetworkType) {
 				}
 			} else {
 				if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "Email", fmt.Sprintf("Failed to send email: %s", message)); errLog != nil {
+					fmt.Printf("Failed to write log: %v\n", errLog)
+				}
+			}
+		}else if !valueARP.Status {
+			if errLog := utils.WriteFormattedLog(
+				conf.LogPath,
+				"ERROR",
+				"ARP Entry",
+				"ARP entry not found or device is unreachable",
+			); errLog != nil {
+				fmt.Printf("Failed to write log: %v\n", errLog)
+			}
+
+			setError, errMsg := updateError(dev, true)
+
+			if !setError {
+				if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "Update Error Status", fmt.Sprintf("Failed to update error status on device: %v", errMsg)); errLog != nil {
 					fmt.Printf("Failed to write log: %v\n", errLog)
 				}
 			}

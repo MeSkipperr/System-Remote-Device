@@ -208,18 +208,17 @@ func PingDevice(dev models.DeviceType, conf monitoringNetworkType) {
 				}
 			}
 		} else if !valueARP.Status {
+			logText := fmt.Sprintf("Time: %s | Name: %s | IP: %s | Device: %s | Result : ARP entry not found",
+			utils.GetCurrentTimeFormatted(), dev.Name, dev.IPAddress, dev.Device)
+
 			if errLog := utils.WriteFormattedLog(
 				conf.LogPath,
 				"ERROR",
 				"ARP Entry",
-				"ARP entry not found or device is unreachable",
+				logText,
 			); errLog != nil {
 				fmt.Printf("Failed to write log: %v\n", errLog)
 			}
-
-			logText := fmt.Sprintf("Time: %s | Name: %s | IP: %s | Device: %s | Result : ARP entry not found",
-				utils.GetCurrentTimeFormatted(), dev.Name, dev.IPAddress, dev.Device)
-
 			errWriteTxt := utils.WriteToTXT(conf.OutputPath+dev.Name+".txt", logText, true)
 
 			if errWriteTxt != nil {
@@ -228,6 +227,15 @@ func PingDevice(dev models.DeviceType, conf monitoringNetworkType) {
 				}
 				return
 			}
+
+			countBol, countMessage := updateCountError(dev, times)
+
+			if !countBol {
+				if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "database", fmt.Sprintf("Error query to database: %v", countMessage)); errLog != nil {
+					fmt.Printf("Failed to write log: %v\n", errLog)
+				}
+			}
+
 
 			setError, errMsg := updateError(dev, true)
 

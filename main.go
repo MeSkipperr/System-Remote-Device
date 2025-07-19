@@ -44,9 +44,9 @@ func main() {
 	//auto running function at first time
 
 	go func() {
+		go project.GetSystemInformation()
+		go project.CheckSystemHasError()	
 		handlers.AutoStartMonitoringNetwork()
-		// project.GetSystemInformation()
-		// project.CheckSystemHasError()	
 	}()
 		
 	r := routes.RegisterRoutes()

@@ -215,6 +215,10 @@ func MonitoringNetwork(stopChan chan struct{}) {
 		return
 	}
 
+	if errLog := utils.WriteFormattedLog(conf.LogPath, "INFO", "Monitoring Network", fmt.Sprintf("Monitoring network started at %s", utils.GetCurrentTimeFormatted())); errLog != nil {
+		fmt.Printf("Failed to write log: %v\n", errLog)
+	}
+
 	ticker := time.NewTicker(time.Duration(conf.Times) * time.Second)
 	defer ticker.Stop()
 
@@ -224,10 +228,6 @@ func MonitoringNetwork(stopChan chan struct{}) {
 			fmt.Println("Monitoring dihentikan oleh sinyal.")
 			return
 		case <-ticker.C:
-			if errLog := utils.WriteFormattedLog(conf.LogPath, "INFO", "Monitoring Network", fmt.Sprintf("Monitoring network started at %s", utils.GetCurrentTimeFormatted())); errLog != nil {
-				fmt.Printf("Failed to write log: %v\n", errLog)
-			}
-
 			db, err := sql.Open("sqlite", "file:./resource/app.db")
 			if err != nil {
 				if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "database", fmt.Sprintf("Error connecting to database: %v", err)); errLog != nil {

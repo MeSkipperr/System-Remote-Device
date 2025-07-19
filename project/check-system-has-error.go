@@ -79,6 +79,7 @@ func CheckSystemHasError() {
 			&d.Description,
 			&d.DownTime,
 			&d.Type,
+			&d.ErrorCount,
 		)
 		if err != nil {
 			if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "database", fmt.Sprintf("Query type mismatch: %v", err)); errLog != nil {

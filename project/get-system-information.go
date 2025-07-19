@@ -151,6 +151,7 @@ func GetSystemInformation() {
 			&d.Description,
 			&d.DownTime,
 			&d.Type,
+			&d.ErrorCount,
 		)
 		if err != nil {
 			if errLog := utils.WriteFormattedLog(configData.LogPath, "ERROR", "database", fmt.Sprintf("Query type mismatch: %v", err)); errLog != nil {

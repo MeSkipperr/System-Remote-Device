@@ -64,12 +64,113 @@ func updateCountError(dev models.DeviceType, countError int) (bool, string) {
 	return true, "Success: Error status updated for device"
 }
 
+func sendErrorEmail(dev models.DeviceType, conf monitoringNetworkType, linesResArray string) {
+
+
+	logText := fmt.Sprintf("Time: %s | Name: %s | IP: %s | Device: %s | Result %s",
+		utils.GetCurrentTimeFormatted(), dev.Name, dev.IPAddress, dev.Device, linesResArray)
+
+	errWriteTxt := utils.WriteToTXT(conf.OutputPath+dev.Name+".txt", logText, true)
+
+	if errWriteTxt != nil {
+		if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "Write Log", fmt.Sprintf("Failed to write file .txt: %v", errWriteTxt)); errLog != nil {
+			fmt.Printf("Failed to write log: %v\n", errLog)
+		}
+		return
+	}
+	setError, errMsg := updateError(dev, true)
+
+	if !setError {
+		if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "Update Error Status", fmt.Sprintf("Failed to update error status on device: %v", errMsg)); errLog != nil {
+			fmt.Printf("Failed to write log: %v\n", errLog)
+		}
+	}
+
+	email := models.EmailStructure{
+		EmailData: models.EmailData{
+			Subject:        "Device Down Notification",
+			BodyTemplate:   email.ErrorDeviceEmail(dev),
+			FileAttachment: []string{},
+		},
+	}
+
+	success, message := utils.SendEmail(email)
+
+	if success {
+		if errLog := utils.WriteFormattedLog(conf.LogPath, "INFO", "Email", fmt.Sprintf("Email sent successfully: %s", message)); errLog != nil {
+			fmt.Printf("Failed to write log: %v\n", errLog)
+		}
+	} else {
+		if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "Email", fmt.Sprintf("Failed to send email: %s", message)); errLog != nil {
+			fmt.Printf("Failed to write log: %v\n", errLog)
+		}
+	}
+}
+
+func sendRecoveredEmail(dev models.DeviceType, conf monitoringNetworkType, linesResArray string) {
+	logText := fmt.Sprintf("Time: %s | Name: %s | IP: %s | Device: %s | Result %s",
+		utils.GetCurrentTimeFormatted(), dev.Name, dev.IPAddress, dev.Device, linesResArray)
+
+	errWriteTxt := utils.WriteToTXT(conf.OutputPath+dev.Name+".txt", logText, true)
+
+	if errWriteTxt != nil {
+		if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "Write Log", fmt.Sprintf("Failed to write file .txt: %v", errWriteTxt)); errLog != nil {
+			fmt.Printf("Failed to write log: %v\n", errLog)
+		}
+		return
+	}
+
+	setError, errMsg := updateError(dev, false)
+
+	if !setError {
+		if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "Update Error Status", fmt.Sprintf("Failed to update error status on device: %v", errMsg)); errLog != nil {
+			fmt.Printf("Failed to write log: %v\n", errLog)
+		}
+	}
+
+	email := models.EmailStructure{
+		EmailData: models.EmailData{
+			Subject:        "Device Recovery Notification",
+			BodyTemplate:   email.RecoveryDeviceEmail(dev),
+			FileAttachment: []string{},
+		},
+	}
+
+	success, message := utils.SendEmail(email)
+
+	if success {
+		if errLog := utils.WriteFormattedLog(conf.LogPath, "INFO", "Email", fmt.Sprintf("Email sent successfully: %s", message)); errLog != nil {
+			fmt.Printf("Failed to write log: %v\n", errLog)
+		}
+	} else {
+		if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "Email", fmt.Sprintf("Failed to send email: %s", message)); errLog != nil {
+			fmt.Printf("Failed to write log: %v\n", errLog)
+		}
+	}
+}
+
 func PingDevice(dev models.DeviceType, conf monitoringNetworkType) {
 	times := conf.Times
 
-	replies, err := utils.PingDevice(dev.IPAddress, 1)
+	replies, errPing := utils.PingDevice(dev.IPAddress, 1)
 
+	lines := strings.Split(replies, "\n")
+	linesResArray := lines[2]
+
+	valueARP, err := utils.GetARPEntry(dev.IPAddress)
 	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+
+	if !valueARP.Status && !dev.Error {
+		sendErrorEmail(dev, conf, linesResArray)
+		return
+	}
+
+	dev.MACAddress = valueARP.MACAddress
+
+	if errPing != nil {
 		dev.ErrorCount = utils.Clamp(dev.ErrorCount+1, 0, times)
 	} else {
 		lines := strings.Split(replies, "\n")
@@ -86,167 +187,22 @@ func PingDevice(dev models.DeviceType, conf monitoringNetworkType) {
 		}
 	}
 
-	countBol, countMessage := updateCountError(dev, dev.ErrorCount)
+	if dev.ErrorCount > 0 && dev.ErrorCount < times  {return}
 
-	if !countBol {
-		if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "database", fmt.Sprintf("Error query to database: %v", countMessage)); errLog != nil {
-			fmt.Printf("Failed to write log: %v\n", errLog)
-		}
+	if errLog := utils.WriteFormattedLog(
+		conf.LogPath,
+		"INFO",
+		"Ping Device",
+		fmt.Sprintf("Name: %s | IP: %s | Device: %s | Result %s", dev.Name, dev.IPAddress, dev.Device, linesResArray),
+	); errLog != nil {
+		fmt.Printf("Failed to write log: %v\n", errLog)
 	}
 
-	if dev.ErrorCount == 0 || dev.ErrorCount == times {
-		lines := strings.Split(replies, "\n")
-		linesResArray := lines[2]
-
-		valueARP, err := utils.GetARPEntry(dev.IPAddress)
-		if err != nil {
-			fmt.Println("Error:", err)
-			return
-		}
-
-		if dev.ErrorCount == times && !dev.Error && valueARP.Status {
-			//send error
-			dev.MACAddress = valueARP.MACAddress
-
-			if errLog := utils.WriteFormattedLog(
-				conf.LogPath,
-				"INFO",
-				"Ping Device",
-				fmt.Sprintf("Name: %s | IP: %s | Device: %s | Result %s", dev.Name, dev.IPAddress, dev.Device, linesResArray),
-			); errLog != nil {
-				fmt.Printf("Failed to write log: %v\n", errLog)
-			}
-
-			logText := fmt.Sprintf("Time: %s | Name: %s | IP: %s | Device: %s | Result %s",
-				utils.GetCurrentTimeFormatted(), dev.Name, dev.IPAddress, dev.Device, linesResArray)
-
-			errWriteTxt := utils.WriteToTXT(conf.OutputPath+dev.Name+".txt", logText, true)
-
-			if errWriteTxt != nil {
-				if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "Write Log", fmt.Sprintf("Failed to write file .txt: %v", errWriteTxt)); errLog != nil {
-					fmt.Printf("Failed to write log: %v\n", errLog)
-				}
-				return
-			}
-			setError, errMsg := updateError(dev, true)
-
-			if !setError {
-				if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "Update Error Status", fmt.Sprintf("Failed to update error status on device: %v", errMsg)); errLog != nil {
-					fmt.Printf("Failed to write log: %v\n", errLog)
-				}
-			}
-
-			email := models.EmailStructure{
-				EmailData: models.EmailData{
-					Subject:        "Device Down Notification",
-					BodyTemplate:   email.ErrorDeviceEmail(dev),
-					FileAttachment: []string{},
-				},
-			}
-
-			success, message := utils.SendEmail(email)
-
-			if success {
-				if errLog := utils.WriteFormattedLog(conf.LogPath, "INFO", "Email", fmt.Sprintf("Email sent successfully: %s", message)); errLog != nil {
-					fmt.Printf("Failed to write log: %v\n", errLog)
-				}
-			} else {
-				if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "Email", fmt.Sprintf("Failed to send email: %s", message)); errLog != nil {
-					fmt.Printf("Failed to write log: %v\n", errLog)
-				}
-			}
-
-		} else if dev.ErrorCount == 0 && dev.Error && valueARP.Status {
-			dev.MACAddress = valueARP.MACAddress
-
-			if errLog := utils.WriteFormattedLog(
-				conf.LogPath,
-				"INFO",
-				"Ping Device",
-				fmt.Sprintf("Name: %s | IP: %s | Device: %s | Result %s", dev.Name, dev.IPAddress, dev.Device, linesResArray),
-			); errLog != nil {
-				fmt.Printf("Failed to write log: %v\n", errLog)
-			}
-
-			logText := fmt.Sprintf("Time: %s | Name: %s | IP: %s | Device: %s | Result %s",
-				utils.GetCurrentTimeFormatted(), dev.Name, dev.IPAddress, dev.Device, linesResArray)
-
-			errWriteTxt := utils.WriteToTXT(conf.OutputPath+dev.Name+".txt", logText, true)
-
-			if errWriteTxt != nil {
-				if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "Write Log", fmt.Sprintf("Failed to write file .txt: %v", errWriteTxt)); errLog != nil {
-					fmt.Printf("Failed to write log: %v\n", errLog)
-				}
-				return
-			}
-
-			setError, errMsg := updateError(dev, false)
-
-			if !setError {
-				if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "Update Error Status", fmt.Sprintf("Failed to update error status on device: %v", errMsg)); errLog != nil {
-					fmt.Printf("Failed to write log: %v\n", errLog)
-				}
-			}
-
-			email := models.EmailStructure{
-				EmailData: models.EmailData{
-					Subject:        "Device Recovery Notification",
-					BodyTemplate:   email.RecoveryDeviceEmail(dev),
-					FileAttachment: []string{},
-				},
-			}
-
-			success, message := utils.SendEmail(email)
-
-			if success {
-				if errLog := utils.WriteFormattedLog(conf.LogPath, "INFO", "Email", fmt.Sprintf("Email sent successfully: %s", message)); errLog != nil {
-					fmt.Printf("Failed to write log: %v\n", errLog)
-				}
-			} else {
-				if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "Email", fmt.Sprintf("Failed to send email: %s", message)); errLog != nil {
-					fmt.Printf("Failed to write log: %v\n", errLog)
-				}
-			}
-		} else if !valueARP.Status {
-			logText := fmt.Sprintf("Time: %s | Name: %s | IP: %s | Device: %s | Result : ARP entry not found",
-			utils.GetCurrentTimeFormatted(), dev.Name, dev.IPAddress, dev.Device)
-
-			if errLog := utils.WriteFormattedLog(
-				conf.LogPath,
-				"ERROR",
-				"ARP Entry",
-				logText,
-			); errLog != nil {
-				fmt.Printf("Failed to write log: %v\n", errLog)
-			}
-			errWriteTxt := utils.WriteToTXT(conf.OutputPath+dev.Name+".txt", logText, true)
-
-			if errWriteTxt != nil {
-				if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "Write Log", fmt.Sprintf("Failed to write file .txt: %v", errWriteTxt)); errLog != nil {
-					fmt.Printf("Failed to write log: %v\n", errLog)
-				}
-				return
-			}
-
-			countBol, countMessage := updateCountError(dev, times)
-
-			if !countBol {
-				if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "database", fmt.Sprintf("Error query to database: %v", countMessage)); errLog != nil {
-					fmt.Printf("Failed to write log: %v\n", errLog)
-				}
-			}
-
-
-			setError, errMsg := updateError(dev, true)
-
-			if !setError {
-				if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "Update Error Status", fmt.Sprintf("Failed to update error status on device: %v", errMsg)); errLog != nil {
-					fmt.Printf("Failed to write log: %v\n", errLog)
-				}
-			}
-		}
+	if dev.ErrorCount == times && !dev.Error {
+		sendErrorEmail(dev, conf, linesResArray)
+	} else if dev.ErrorCount == 0 && dev.Error {
+		sendRecoveredEmail(dev, conf, linesResArray)
 	}
-
 }
 
 func MonitoringNetwork(stopChan chan struct{}) {

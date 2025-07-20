@@ -165,6 +165,15 @@ func PingDevice(dev models.DeviceType, conf monitoringNetworkType) {
 
 	if !valueARP.Status && !dev.Error {
 		sendErrorEmail(dev, conf, linesResArray)
+		
+		countBol, countMessage := updateCountError(dev, times)
+
+		if !countBol {
+			if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "database", fmt.Sprintf("Error query to database: %v", countMessage)); errLog != nil {
+				fmt.Printf("Failed to write log: %v\n", errLog)
+			}
+		}
+
 		return
 	}
 

@@ -157,7 +157,7 @@ func GetUptimeADB() {
 	devices := []models.DeviceType{}
 	for rows.Next() {
 		var d models.DeviceType
-		err := rows.Scan(&d.ID, &d.Name, &d.IPAddress, &d.Device, &d.Error, &d.Description, &d.DownTime, &d.Type)
+		err := rows.Scan(&d.ID, &d.Name, &d.IPAddress, &d.Device, &d.Error, &d.Description, &d.DownTime, &d.Type, &d.ErrorCount)
 		if err != nil {
 			logToFile(conf.LogPath, "ERROR", "Database", fmt.Sprintf("Error scanning row: %v", err))
 			return

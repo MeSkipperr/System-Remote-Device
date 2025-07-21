@@ -196,22 +196,24 @@ func PingDevice(dev models.DeviceType, conf monitoringNetworkType) {
 		}
 	}
 
-	if dev.ErrorCount > 0 && dev.ErrorCount < times  {return}
+	if dev.ErrorCount == 0 || dev.ErrorCount == times {
+		if errLog := utils.WriteFormattedLog(
+			conf.LogPath,
+			"INFO",
+			"Ping Device",
+			fmt.Sprintf("Name: %s | IP: %s | Device: %s | Result %s", dev.Name, dev.IPAddress, dev.Device, linesResArray),
+		); errLog != nil {
+			fmt.Printf("Failed to write log: %v\n", errLog)
+		}
 
-	if errLog := utils.WriteFormattedLog(
-		conf.LogPath,
-		"INFO",
-		"Ping Device",
-		fmt.Sprintf("Name: %s | IP: %s | Device: %s | Result %s", dev.Name, dev.IPAddress, dev.Device, linesResArray),
-	); errLog != nil {
-		fmt.Printf("Failed to write log: %v\n", errLog)
+		if dev.ErrorCount == times && !dev.Error {
+			sendErrorEmail(dev, conf, linesResArray)
+		} else if dev.ErrorCount == 0 && dev.Error {
+			sendRecoveredEmail(dev, conf, linesResArray)
+		}
 	}
 
-	if dev.ErrorCount == times && !dev.Error {
-		sendErrorEmail(dev, conf, linesResArray)
-	} else if dev.ErrorCount == 0 && dev.Error {
-		sendRecoveredEmail(dev, conf, linesResArray)
-	}
+
 }
 
 func MonitoringNetwork(stopChan chan struct{}) {

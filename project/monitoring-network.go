@@ -196,6 +196,14 @@ func PingDevice(dev models.DeviceType, conf monitoringNetworkType) {
 		}
 	}
 
+	countBol, countMessage := updateCountError(dev, dev.ErrorCount)
+
+	if !countBol {
+		if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "database", fmt.Sprintf("Error query to database: %v", countMessage)); errLog != nil {
+			fmt.Printf("Failed to write log: %v\n", errLog)
+		}
+	}
+
 	if dev.ErrorCount == 0 || dev.ErrorCount == times {
 		if errLog := utils.WriteFormattedLog(
 			conf.LogPath,

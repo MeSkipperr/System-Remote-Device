@@ -41,7 +41,6 @@ func main() {
 
 		c.Start()
 	}()
-	//auto running function at first time
 
 	go func() {
 		go project.GetSystemInformation()

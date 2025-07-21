@@ -7,11 +7,11 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/go-playground/validator/v10"
 	"github.com/gorilla/mux"
 	_ "modernc.org/sqlite"
-	"github.com/go-playground/validator/v10"
-
 )
+
 var validate = validator.New()
 
 // DeviceRepository fetches devices from DB by custom WHERE clause
@@ -40,6 +40,7 @@ func fetchDevicesByQuery(query string, arg interface{}) ([]models.DeviceType, er
 			&d.Description,
 			&d.DownTime,
 			&d.Type,
+			&d.ErrorCount,
 		)
 		if err != nil {
 			return nil, err
@@ -61,7 +62,7 @@ func writeJSON(w http.ResponseWriter, statusCode int, data interface{}) {
 	json.NewEncoder(w).Encode(data)
 }
 
-//* GET HANDLERS
+// * GET HANDLERS
 // GetDeviceByID returns single device data by ID
 func GetDeviceByID(w http.ResponseWriter, r *http.Request) {
 	id := mux.Vars(r)["id"]

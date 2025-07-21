@@ -8,10 +8,11 @@ import (
 	"SystemRemoteDevice/utils"
 	"database/sql"
 	"fmt"
-	_ "modernc.org/sqlite"
 	"strconv"
 	"strings"
 	"time"
+
+	_ "modernc.org/sqlite"
 )
 
 func verifyYouTubeData(devices []models.DeviceType, outputPath string, logPath string) (bool, string) {
@@ -190,6 +191,7 @@ func RemoveYouTubeData() {
 					&d.Description,
 					&d.DownTime,
 					&d.Type,
+					&d.ErrorCount,
 				)
 				if err != nil {
 					if errLog := utils.WriteFormattedLog(conf.LogPath, "ERROR", "database", fmt.Sprintf("Query type mismatch: %v", err)); errLog != nil {

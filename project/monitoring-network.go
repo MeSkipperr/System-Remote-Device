@@ -176,7 +176,9 @@ func PingDevice(dev models.DeviceType, conf monitoringNetworkType) {
 
 		return
 	}
-
+	if dev.ErrorCount > times {
+		dev.ErrorCount = times
+	}
 	dev.MACAddress = valueARP.MACAddress
 
 	if errPing != nil {

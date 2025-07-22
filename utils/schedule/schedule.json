@@ -2,6 +2,7 @@
     "removeYoutubeData" : "0 13 * * *",
     "getUptimeADBDevices":"0 10 * * *",
     "clearLogMonitoring":"0 0 1 * *",
-    "restartComputer":"0 9 * * 1"
+    "restartComputer":"0 9 * * 1",
+    "checkSystemHasError":"0 10 * * 1"
 }
 

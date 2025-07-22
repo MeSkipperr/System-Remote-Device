@@ -19,6 +19,7 @@ type scheduleConfig struct {
 	GetUptimeADBDevices       	string      `json:"getUptimeADBDevices"`
 	RestartComputer       		string      `json:"restartComputer"`
 	ClearLogMonitoring       	string      `json:"clearLogMonitoring"`
+	CheckSystemHasError       	string      `json:"checkSystemHasError"`
 }
 
 
@@ -38,13 +39,13 @@ func main() {
 		c.AddFunc(scheduleConfig.RestartComputer	, schedule.RestartComputer)
 		c.AddFunc(scheduleConfig.GetUptimeADBDevices, project.GetUptimeADB)
 		c.AddFunc(scheduleConfig.RemoveYoutubeData	, project.RemoveYouTubeData)
+		c.AddFunc(scheduleConfig.CheckSystemHasError , project.GetSystemInformation)
+		c.AddFunc(scheduleConfig.CheckSystemHasError , project.CheckSystemHasError)
 
 		c.Start()
 	}()
 
 	go func() {
-		go project.GetSystemInformation()
-		go project.CheckSystemHasError()	
 		handlers.AutoStartMonitoringNetwork()
 	}()
 		

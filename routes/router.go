@@ -24,5 +24,9 @@ func RegisterRoutes() *mux.Router {
 	apiRouter.HandleFunc("/category/{category}", api.GetDevicesByCategory).Methods("GET")
 	apiRouter.HandleFunc("", api.AddDevice).Methods("POST")
 
+	// User API
+	userRouter := r.PathPrefix("/api/user").Subrouter()
+	userRouter.HandleFunc("", api.GetAllUsers).Methods("GET")
+	userRouter.HandleFunc("", api.AddUser).Methods("POST")
 	return r
 }

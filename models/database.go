@@ -15,3 +15,10 @@ type DeviceType struct {
 	ErrorCount    int       `json:"count_error"`
 	MACAddress    string    `json:"mac_address"`
 }
+type UserType struct{
+	ID	   int    `json:"user_id"`       // Unique identifier for the user
+	Email    string `json:"user_email"`         // User's email address
+	Password string `json:"user_password"`      // User's password
+	Role     string `json:"user_role"`          // User's role (e.g., admin
+	Name	 string `json:"user_name"`          // User's name
+}

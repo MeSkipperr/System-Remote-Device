@@ -25,3 +25,4 @@ type EmailStructure struct {
 	EmailData  EmailData  `json:"emailData"`  // Email content details
 	Sender 	   Sender     `json:"sender"` // List of users sending the email
 }
+

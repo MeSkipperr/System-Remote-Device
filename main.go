@@ -1,15 +1,15 @@
 package main
 
 import (
-	"SystemRemoteDevice/config"
-	"SystemRemoteDevice/handlers"
-	"SystemRemoteDevice/project"
+	// "SystemRemoteDevice/config"
+	// "SystemRemoteDevice/handlers"
+	// "SystemRemoteDevice/project"
 	"SystemRemoteDevice/routes"
-	"SystemRemoteDevice/utils/schedule"
+	// "SystemRemoteDevice/utils/schedule"
 	"fmt"
 	"net/http"
 
-	"github.com/robfig/cron/v3"
+	// "github.com/robfig/cron/v3"
 )
 
 
@@ -26,28 +26,28 @@ type scheduleConfig struct {
 
 func main() {
 	
-	go func() {
-		scheduleConfig, errLoadJson := config.LoadJSON[scheduleConfig]("utils/schedule/schedule.json")
-		if errLoadJson != nil {	
-			fmt.Println("Failed to load config from json", errLoadJson)
-			return 
-		} 
-		c := cron.New()
+	// go func() {
+	// 	scheduleConfig, errLoadJson := config.LoadJSON[scheduleConfig]("utils/schedule/schedule.json")
+	// 	if errLoadJson != nil {	
+	// 		fmt.Println("Failed to load config from json", errLoadJson)
+	// 		return 
+	// 	} 
+	// 	c := cron.New()
 
-		c.AddFunc(scheduleConfig.ClearLogMonitoring	, schedule.ClearMonitoringLog)
-		c.AddFunc(scheduleConfig.ClearLogMonitoring	, schedule.DeleteLogFiles)
-		c.AddFunc(scheduleConfig.RestartComputer	, schedule.RestartComputer)
-		c.AddFunc(scheduleConfig.GetUptimeADBDevices, project.GetUptimeADB)
-		c.AddFunc(scheduleConfig.RemoveYoutubeData	, project.RemoveYouTubeData)
-		c.AddFunc(scheduleConfig.CheckSystemHasError , project.GetSystemInformation)
-		c.AddFunc(scheduleConfig.CheckSystemHasError , project.CheckSystemHasError)
+	// 	c.AddFunc(scheduleConfig.ClearLogMonitoring	, schedule.ClearMonitoringLog)
+	// 	c.AddFunc(scheduleConfig.ClearLogMonitoring	, schedule.DeleteLogFiles)
+	// 	c.AddFunc(scheduleConfig.RestartComputer	, schedule.RestartComputer)
+	// 	c.AddFunc(scheduleConfig.GetUptimeADBDevices, project.GetUptimeADB)
+	// 	c.AddFunc(scheduleConfig.RemoveYoutubeData	, project.RemoveYouTubeData)
+	// 	c.AddFunc(scheduleConfig.CheckSystemHasError , project.GetSystemInformation)
+	// 	c.AddFunc(scheduleConfig.CheckSystemHasError , project.CheckSystemHasError)
 
-		c.Start()
-	}()
+	// 	c.Start()
+	// }()
 
-	go func() {
-		handlers.AutoStartMonitoringNetwork()
-	}()
+	// go func() {
+	// 	handlers.AutoStartMonitoringNetwork()
+	// }()
 		
 	r := routes.RegisterRoutes()
 

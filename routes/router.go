@@ -1,9 +1,11 @@
 package routes
 
 import (
-	"github.com/gorilla/mux"
 	"SystemRemoteDevice/handlers"
 	"SystemRemoteDevice/handlers/api"
+	"SystemRemoteDevice/handlers/api/auth"
+
+	"github.com/gorilla/mux"
 )
 
 func RegisterRoutes() *mux.Router {
@@ -24,5 +26,13 @@ func RegisterRoutes() *mux.Router {
 	apiRouter.HandleFunc("/category/{category}", api.GetDevicesByCategory).Methods("GET")
 	apiRouter.HandleFunc("", api.AddDevice).Methods("POST")
 
+	// User API
+	userRouter := r.PathPrefix("/api/user").Subrouter()
+	userRouter.HandleFunc("", api.GetAllUsers).Methods("GET")
+	userRouter.HandleFunc("", api.AddUser).Methods("POST")
+
+	// Auth API
+	authRouter := r.PathPrefix("/api/auth").Subrouter()
+	authRouter.HandleFunc("/login", auth.LoginHandler).Methods("POST")
 	return r
 }

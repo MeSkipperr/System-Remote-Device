@@ -20,7 +20,7 @@ type EmailData struct {
 }
 
 // EmailStructure defines the complete structure required to send an email.
-type EmailStructure struct {
+type  EmailStructure struct {
 	Recipients []Recipients     `json:"recipients"` // List of users receiving the email
 	EmailData  EmailData  `json:"emailData"`  // Email content details
 	Sender 	   Sender     `json:"sender"` // List of users sending the email

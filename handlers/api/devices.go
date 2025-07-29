@@ -55,12 +55,6 @@ func fetchDevicesByQuery(query string, arg interface{}) ([]models.DeviceType, er
 	return devices, nil
 }
 
-// writeJSON is a helper function to send JSON responses
-func writeJSON(w http.ResponseWriter, statusCode int, data interface{}) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(statusCode)
-	json.NewEncoder(w).Encode(data)
-}
 
 // * GET HANDLERS
 // GetDeviceByID returns single device data by ID
@@ -79,7 +73,7 @@ func GetDeviceByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, devices[0]) // Kirim hanya 1 device
+	WriteJSON(w, http.StatusOK, devices[0]) // Kirim hanya 1 device
 }
 
 // GetDevicesByType returns list of devices by type
@@ -98,7 +92,7 @@ func GetDevicesByCategory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, devices)
+	WriteJSON(w, http.StatusOK, devices)
 }
 
 //*Post Handlers
@@ -134,5 +128,5 @@ func AddDevice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, map[string]string{"message": "Device added successfully"})
+	WriteJSON(w, http.StatusCreated, map[string]string{"message": "Device added successfully"})
 }

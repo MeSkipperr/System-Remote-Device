@@ -1,53 +1,55 @@
-package api 
+package api
 
 import (
+	"SystemRemoteDevice/internal/security"
 	"SystemRemoteDevice/models"
+	"database/sql"
 	"encoding/json"
+	"fmt"
 	"net/http"
-	"github.com/gorilla/mux"
+
 	_ "modernc.org/sqlite"
-	"log"
 )
 
- func getUserQuery(query string, arg interface{}) ([]models.UserUserType, error) {
-	db, err := sql.Open("sqlite", "file:./resource/app.db")
+func GetUserQuery(query string, arg interface{}) ([]models.UserType, error) {
+db, err := sql.Open("sqlite", "file:./resource/app.db")
+if err != nil {
+	return nil, err
+}
+defer db.Close()
+
+rows, err := db.Query(query, arg)
+if err != nil {
+	return nil, err
+}
+defer rows.Close()
+
+var users []models.UserType
+for rows.Next() {
+	var d models.UserType
+	err := rows.Scan(
+		&d.ID,
+		&d.Name,
+		&d.Email,
+		&d.Role,
+		&d.Password,
+	)
 	if err != nil {
 		return nil, err
 	}
-	defer db.Close()
+	users = append(users, d)
+}
 
-	rows, err := db.Query(query, arg)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
+if err := rows.Err(); err != nil {
+	return nil, err
+}
 
-	var users []models.UserType
-	for rows.Next() {
-		var d models.UserType
-		err := rows.Scan(
-			&d.ID,
-			&d.Name,
-			&d.Email,
-			&d.Password,
-			&d.Role,
-		)
-		if err != nil {
-			return nil, err
-		}
-		users = append(users, d)
-	}
+return users, nil	 
+}
 
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-
-	return users, nil	 
- }
-
- func GetAllUsers(w http.ResponseWriter, r *http.Request) {
+func GetAllUsers(w http.ResponseWriter, r *http.Request) {
 	query := "SELECT * FROM users"
-	users, err := getUserQuery(query, nil)
+	users, err := GetUserQuery(query, nil)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -62,7 +64,7 @@ import (
 			Role:  user.Role,
 		})
 	}
-	writeJSON(w, http.StatusOK, userWithoutPassword)
+	WriteJSON(w, http.StatusOK, userWithoutPassword)
 }
 
 func AddUser(w http.ResponseWriter, r *http.Request) {
@@ -72,19 +74,37 @@ func AddUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if user.Name == "" || user.Email == "" || user.Password == "" || user.Role == "" {
+		http.Error(w, "All fields are required", http.StatusBadRequest)
+		return
+	}
+
+	fmt.Printf("Adding user: %s\n", user.Name)
+	fmt.Printf("User email: %s\n", user.Email)
+	fmt.Printf("User role: %s\n", user.Role)
+	fmt.Printf("User password: %s\n", user.Password)
+
+	hashedPassword, err := security.BcryptHash(user.Password)
+	if err != nil {
+		http.Error(w, "Error hashing password", http.StatusInternalServerError)
+		return
+	}
+
 	db, err := sql.Open("sqlite", "file:./resource/app.db")
 	if err != nil {
 		http.Error(w, "Database connection error", http.StatusInternalServerError)
 		return
 	}
 	defer db.Close()
+	
 
-	query := `INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)`
-	_, err = db.Exec(query, user.Name, user.Email, user.Password, user.Role)
+	query := "INSERT INTO users (user_name, user_email, user_role, user_pass) VALUES (?, ?, ?, ?)"
+	_, err = db.Exec(query, user.Name, user.Email, user.Role, hashedPassword)
+
 	if err != nil {
 		http.Error(w, "Failed to add user", http.StatusInternalServerError)
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, map[string]string{"status": "User added successfully"})
+	WriteJSON(w, http.StatusCreated, map[string]string{"status": "User added successfully"})
 }

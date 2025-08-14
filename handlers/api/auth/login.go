@@ -38,11 +38,6 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "User not found", http.StatusNotFound)
 		return
 	}
-	fmt.Print("Login attempt for user:", loginData.Name, "\n")
-	fmt.Print("User found:", users[0].Name, "\n")
-	fmt.Print("User password:", users[0].Password, "\n")
-	fmt.Print("Login password:", loginData.Password, "\n")
-	
 	if ( !security.CheckBcryptHash(loginData.Password, users[0].Password)) {
 		http.Error(w, "Invalid username or password", http.StatusUnauthorized)
 		return

@@ -4,6 +4,7 @@ import (
 	"SystemRemoteDevice/handlers"
 	"SystemRemoteDevice/handlers/api"
 	"SystemRemoteDevice/handlers/api/auth"
+	"SystemRemoteDevice/handlers/api/token"
 
 	"github.com/gorilla/mux"
 )
@@ -29,7 +30,12 @@ func RegisterRoutes() *mux.Router {
 	// User API
 	userRouter := r.PathPrefix("/api/user").Subrouter()
 	userRouter.HandleFunc("", api.GetAllUsers).Methods("GET")
-	userRouter.HandleFunc("", api.AddUser).Methods("POST")
+	userRouter.HandleFunc("", auth.AddUser).Methods("POST")
+
+	// Token API
+	tokenRouter := r.PathPrefix("/api/token").Subrouter()
+	tokenRouter.HandleFunc("/create", token.CreateToken).Methods("POST")
+	tokenRouter.HandleFunc("/verify", token.VerifyToken).Methods("POST")
 
 	// Auth API
 	authRouter := r.PathPrefix("/api/auth").Subrouter()

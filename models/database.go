@@ -22,3 +22,13 @@ type UserType struct{
 	Role     string `json:"user_role"`          // User's role (e.g., admin
 	Password string `json:"user_pass"`      // User's password
 }
+
+type VerificationToken struct {
+	ID        int       `json:"id" db:"id"`
+	Email     string    `json:"email" db:"email"`
+	Code      string    `json:"code" db:"code"` 
+	Type      string    `json:"type" db:"type"` 
+	ExpiresAt time.Time `json:"expires_at" db:"expires_at"`
+	Used      bool      `json:"used" db:"used"`
+	CreatedAt time.Time `json:"created_at" db:"created_at"`
+}

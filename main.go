@@ -46,6 +46,7 @@ func main() {
 	}()
 
 	go func() {
+		project.GetSpeedTestNetwork()
 		handlers.AutoStartMonitoringNetwork()
 	}()
 		

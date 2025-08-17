@@ -20,19 +20,15 @@ type SpeedResult struct {
 	ServerName string  `json:"name"`
 }
 
-type SpeedTestParms struct {
-	SourceIP string `json:"source_ip"`
-	ServerID int    `json:"server_id"`
-}
 
-func RunningSpeedtest(data SpeedTestParms) (SpeedResult, error) {
+func RunningSpeedtest(sourceIp string) (SpeedResult, error) {
 	// Validate SourceIP
-	if data.SourceIP == "" {
+	if sourceIp == "" {
 		return SpeedResult{}, fmt.Errorf("SourceIP cannot be empty")
 	}
 
 	client := speedtest.New()
-	speedtest.WithUserConfig(&speedtest.UserConfig{Source: data.SourceIP})(client)
+	speedtest.WithUserConfig(&speedtest.UserConfig{Source: sourceIp})(client)
 
 	user, err := client.FetchUserInfo()
 	if err != nil {
@@ -45,14 +41,7 @@ func RunningSpeedtest(data SpeedTestParms) (SpeedResult, error) {
 	}
 
 	var targets speedtest.Servers
-	if data.ServerID == 0 {
-		// Use nearest server if ServerID is not provided
-		targets, _ = serverList.FindServer([]int{})
-	} else {
-		// Use specified ServerID
-		targets, _ = serverList.FindServer([]int{data.ServerID})
-	}
-
+	targets, _ = serverList.FindServer([]int{})
 	if len(targets) == 0 {
 		return SpeedResult{}, fmt.Errorf("no server found")
 	}
@@ -63,12 +52,12 @@ func RunningSpeedtest(data SpeedTestParms) (SpeedResult, error) {
 	s.UploadTest()
 
 	result := SpeedResult{
-		SourceIP:   data.SourceIP,
+		SourceIP:   sourceIp,
 		PublicIP:   user.IP,
 		ISP:        user.Isp,
 		Country:    s.Country,
 		ServerID:   s.ID,
-		ServerName: s.Name,
+		ServerName: s.Sponsor,
 		PingMs:     s.Latency.Milliseconds(),
 		Download:   s.DLSpeed.Mbps(),
 		Upload:     s.ULSpeed.Mbps(),

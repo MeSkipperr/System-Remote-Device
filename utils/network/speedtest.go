@@ -1,12 +1,35 @@
 package network
 
 import (
+	"encoding/json"
 	"fmt"
+	"os/exec"
+	"path/filepath"
 	"time"
-
-	"github.com/showwin/speedtest-go/speedtest"
 )
 
+type cliResult struct {
+	ISP       string `json:"isp"`
+	Interface struct {
+		ExternalIP string `json:"externalIp"`
+	} `json:"interface"`
+	Ping struct {
+		Latency float64 `json:"latency"`
+	} `json:"ping"`
+	Download struct {
+		Bandwidth float64 `json:"bandwidth"`
+	} `json:"download"`
+	Upload struct {
+		Bandwidth float64 `json:"bandwidth"`
+	} `json:"upload"`
+	Server struct {
+		ID      json.Number `json:"id"`
+		Name    string `json:"name"`
+		Country string `json:"country"`
+	} `json:"server"`
+}
+
+// struct hasil kamu tetap sama
 type SpeedResult struct {
 	SourceIP   string  `json:"source_ip"`
 	PublicIP   string  `json:"public_ip"`
@@ -16,51 +39,45 @@ type SpeedResult struct {
 	Upload     float64 `json:"upload_mbps"`
 	Timestamp  string  `json:"timestamp"`
 	Country    string  `json:"country"`
-	ServerID   string `xml:"id,attr" json:"id"`
+	ServerID   string  `json:"id"`
 	ServerName string  `json:"name"`
 }
 
-
 func RunningSpeedtest(sourceIp string) (SpeedResult, error) {
-	// Validate SourceIP
 	if sourceIp == "" {
 		return SpeedResult{}, fmt.Errorf("SourceIP cannot be empty")
 	}
 
-	client := speedtest.New()
-	speedtest.WithUserConfig(&speedtest.UserConfig{Source: sourceIp})(client)
+	// path relatif ke project
+	exePath := filepath.Join(".", "resource", "speedtest.exe")
 
-	user, err := client.FetchUserInfo()
+	// jalankan speedtest CLI dengan output JSON
+	cmd := exec.Command(exePath, "--accept-license", "--accept-gdpr", "-f", "json")
+	out, err := cmd.Output()
 	if err != nil {
-		return SpeedResult{}, fmt.Errorf("failed to fetch user info: %v", err)
+		return SpeedResult{}, fmt.Errorf("failed to run speedtest CLI: %w", err)
 	}
 
-	serverList, err := client.FetchServers()
-	if err != nil {
-		return SpeedResult{}, fmt.Errorf("failed to fetch server list: %v", err)
+	// parse JSON ke struct sementara
+	var cli cliResult
+	if err := json.Unmarshal(out, &cli); err != nil {
+		return SpeedResult{}, fmt.Errorf("failed to parse JSON: %w", err)
 	}
 
-	var targets speedtest.Servers
-	targets, _ = serverList.FindServer([]int{})
-	if len(targets) == 0 {
-		return SpeedResult{}, fmt.Errorf("no server found")
-	}
-
-	s := targets[0]
-	s.PingTest(nil)
-	s.DownloadTest()
-	s.UploadTest()
+	// bandwidth dari bps → Mbps
+	downloadMbps := cli.Download.Bandwidth / 125000.0
+	uploadMbps := cli.Upload.Bandwidth / 125000.0
 
 	result := SpeedResult{
 		SourceIP:   sourceIp,
-		PublicIP:   user.IP,
-		ISP:        user.Isp,
-		Country:    s.Country,
-		ServerID:   s.ID,
-		ServerName: s.Sponsor,
-		PingMs:     s.Latency.Milliseconds(),
-		Download:   s.DLSpeed.Mbps(),
-		Upload:     s.ULSpeed.Mbps(),
+		PublicIP:   cli.Interface.ExternalIP,
+		ISP:        cli.ISP,
+		Country:    cli.Server.Country,
+		ServerID:   cli.Server.ID.String()	,
+		ServerName: cli.Server.Name,
+		PingMs:     int64(cli.Ping.Latency),
+		Download:   downloadMbps,
+		Upload:     uploadMbps,
 		Timestamp:  time.Now().Format("2006-01-02 15:04:05"),
 	}
 

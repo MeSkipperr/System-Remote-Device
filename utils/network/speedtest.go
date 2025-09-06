@@ -52,7 +52,7 @@ func RunningSpeedtest(sourceIp string) (SpeedResult, error) {
 	exePath := filepath.Join(".", "resource", "speedtest.exe")
 
 	// jalankan speedtest CLI dengan output JSON
-	cmd := exec.Command(exePath, "--accept-license", "--accept-gdpr", "-f", "json")
+	cmd := exec.Command(exePath, "--accept-license", "--accept-gdpr", "-f", "json", "--ip="+sourceIp)
 	out, err := cmd.Output()
 	if err != nil {
 		return SpeedResult{}, fmt.Errorf("failed to run speedtest CLI: %w", err)

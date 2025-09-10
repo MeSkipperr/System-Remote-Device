@@ -24,8 +24,8 @@ type cliResult struct {
 	} `json:"upload"`
 	Server struct {
 		ID      json.Number `json:"id"`
-		Name    string `json:"name"`
-		Country string `json:"country"`
+		Name    string      `json:"name"`
+		Country string      `json:"country"`
 	} `json:"server"`
 }
 
@@ -43,16 +43,25 @@ type SpeedResult struct {
 	ServerName string  `json:"name"`
 }
 
-func RunningSpeedtest(sourceIp string) (SpeedResult, error) {
+func RunningSpeedtest(sourceIp string, serverID string) (SpeedResult, error) {
 	if sourceIp == "" {
 		return SpeedResult{}, fmt.Errorf("SourceIP cannot be empty")
 	}
 
 	// path relatif ke project
 	exePath := filepath.Join(".", "resource", "speedtest.exe")
+	args := []string{
+		"--accept-license",
+		"--accept-gdpr",
+		"-f", "json",
+		"--ip=" + sourceIp,
+	}
+	if serverID != "" {
+		args = append(args, "--server-id="+serverID)
+	}
 
+	cmd := exec.Command(exePath, args...)
 	// jalankan speedtest CLI dengan output JSON
-	cmd := exec.Command(exePath, "--accept-license", "--accept-gdpr", "-f", "json", "--ip="+sourceIp)
 	out, err := cmd.Output()
 	if err != nil {
 		return SpeedResult{}, fmt.Errorf("failed to run speedtest CLI: %w", err)
@@ -73,7 +82,7 @@ func RunningSpeedtest(sourceIp string) (SpeedResult, error) {
 		PublicIP:   cli.Interface.ExternalIP,
 		ISP:        cli.ISP,
 		Country:    cli.Server.Country,
-		ServerID:   cli.Server.ID.String()	,
+		ServerID:   cli.Server.ID.String(),
 		ServerName: cli.Server.Name,
 		PingMs:     int64(cli.Ping.Latency),
 		Download:   downloadMbps,
